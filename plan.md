@@ -5,9 +5,27 @@
 Build a **POC** that can convince the Mamori maintainers of two claims:
 
 1. **A stand-alone resolver is useful** — callers (e.g. MCP secret resolution) can resolve Mamori URIs without linking Mamori’s full typed-config / watch / reconciliation stack or any cloud SDKs into their own binary.
-2. **Dynamic loading of providers is useful and not too difficult** — at runtime the resolver loads **prebuilt provider binaries** (config → exec → stdio RPC → `Info` schemes), so an install that only needs Vault never ships or loads AWS, and callers need not **compile** provider source (or its SDKs) into their own module. “Dynamic loading” means **out-of-process provider plugins**, not Go `plugin` `.so` files.
+2. **Dynamic loading of providers is useful and not too difficult** — at runtime the resolver loads **prebuilt provider binaries** (config → exec → stdio RPC → `Info` schemes), so an install that only needs SQLite never ships or loads AWS, and callers need not **compile** provider source (or its SDKs) into their own module. “Dynamic loading” means **out-of-process provider plugins**, not Go `plugin` `.so` files.
 
 The POC is the argument: working code + a short demo + measurements. It is **not** a production-hardened product.
+
+### Customer value (lead with this in the design note)
+
+**Existing Mamori customers** (already on typed config / watch / reconcile):
+
+- **Smaller, faster builds** — pull only the provider binaries they need at runtime; AWS SDK (etc.) no longer has to enter every app’s `go.mod` / CI cache just because one field might resolve from Secrets Manager.
+- **Same URIs and semantics** — `aws-sm://…`, `sqlite://…`, error kinds, `Value` metadata stay familiar; they are not asked to learn a second secret system.
+- **Optional adoption** — keep in-process blank-import where that is fine; use out-of-process only where SDK weight, isolation, or selective install matters.
+- **Vendor / extension providers** — third parties can ship a `mamori-provider-*` binary that speaks the same RPC without forcing every consumer to compile that vendor’s SDK.
+
+**Future / resolve-only customers** (MCP tools, CLIs, one-shot secret fetch, services that do not need Mamori’s watch/reconcile stack):
+
+- **Mamori’s provider ecosystem without the full framework** — `Resolve(uri) → Value` is enough; no struct tags, watcher, or reconciler required.
+- **Tiny caller dependency** — link a thin resolver, not Mamori core + N cloud SDKs.
+- **Install what you use** — download/run only `mamori-provider-sqlite` (or Vault, or a vendor binary); never compile or ship the rest.
+- **Clear on-ramp** — start resolve-only; graduate to full Mamori Load/Watch later with the same refs and providers.
+
+The maintainer pitch (architecture, process model, upstream home) comes **after** this value story.
 
 **POC vs eventual proposal:**
 
@@ -31,7 +49,7 @@ So the POC’s job is persuasion toward upstream adoption — not founding an in
 URI → select provider process → stdio RPC → existing Mamori provider → Value
 ```
 
-`mamori-resolver` has **no** AWS/GCP/Azure/Vault/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec, small config parse). Provider SDKs live only in separately built `mamori-provider-*` executables.
+`mamori-resolver` has **no** AWS/GCP/Azure/Vault/SQLite/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec, small config parse). Provider SDKs live only in separately built `mamori-provider-*` executables.
 
 ```
                     mamori-resolver
@@ -44,14 +62,15 @@ URI → select provider process → stdio RPC → existing Mamori provider → V
                           │ stdin/stdout (framed)
           ┌───────────────┼────────────────┐
           ▼               ▼                ▼
- mamori-provider-aws  mamori-provider-vault  ...
-   (aws-sm, aws-ps,        (vault)
-    aws-appconfig)
+ mamori-provider-sqlite  mamori-provider-aws  ...
+   (sqlite)                (aws-sm, aws-ps,
+                            aws-appconfig)
           │               │
     existing Mamori   existing Mamori
     provider pkgs     provider pkgs
 ```
 
+**POC provider pair:** **sqlite** (trivial local setup: DB file + `SQLITE_PATH`) as the default live demo; **AWS** optional/nightly to show a heavy SDK stays out of the resolver. Vault (HashiCorp) is a fine later target but is not required for the POC demo.
 No ports, sockets, or service discovery.
 
 ### Non-goals (POC)
@@ -74,18 +93,18 @@ Maintainers can be shown, in one sitting:
 
 | Claim | Evidence |
 | --- | --- |
-| Stand-alone resolver is useful | Small Go program (or CLI) resolves `vault://…` / `aws-sm://…` via `Resolver.Resolve` with **no** cloud SDKs in its `go.mod` |
-| Dynamic loading is useful | Config lists only the providers needed; Vault-only run never execs/loads AWS; caller did not compile provider source |
+| Stand-alone resolver is useful | Small Go program (or CLI) resolves `sqlite://…` (and optionally `aws-sm://…`) via `Resolver.Resolve` with **no** provider SDKs in its `go.mod` |
+| Dynamic loading is useful | Config lists only the providers needed; sqlite-only run never execs/loads AWS; caller did not compile provider source |
 | Dynamic loading is not too hard | Small resolver + shim; POC uses generated blank-import mains; design note shows migration path to providers-as-RPC-servers |
 
-Artifacts to hand over: runnable POC, README demo script, dependency-graph / binary-size notes, and a short design note proposing **how this lands inside Mamori** (not how we maintain it forever outside).
+Artifacts to hand over: runnable POC, README demo script, dependency-graph / binary-size notes, and a short design note that **leads with customer value**, then proposes how this lands inside Mamori.
 
 ---
 
 ## Deliverables (POC-scoped)
 
 1. **`mamori-resolver`** — process manager + framed `net/rpc` + config/discovery + public `Resolve` API (spike module; intended upstream shape).
-2. **Provider binaries (POC bridge)** — `go generate` → `mamori-provider-aws` / `mamori-provider-vault` via blank-import + `ServeRegistered()`; **zero edits** to existing provider packages.
+2. **Provider binaries (POC bridge)** — `go generate` → `mamori-provider-sqlite` (required demo) and optionally `mamori-provider-aws` via blank-import + `ServeRegistered()`; **zero edits** to existing provider packages.
 3. **Minimal wire/SPI types in the resolver** — enough for the RPC boundary. Provider children keep importing full `github.com/xavidop/mamori` as today.
 4. **Design note** — includes the **migration proposal**: move from generate wrappers to providers shipping as RPC servers upstream.
 
@@ -95,7 +114,7 @@ Upstream adoption of resolver + providers-as-RPC-servers is the desired outcome.
 
 ### Phase 0 — Confirm SPI surface (first implementation task)
 
-Inspection of AWS + Vault already shows a thin dependency: production code imports only the root `github.com/xavidop/mamori` package (no reconciler, Load/config, watch adapter, or server). Treat this as **confirmation**, not a blocker.
+Inspection of AWS + sqlite (and previously Vault) already shows a thin dependency: production code imports only the root `github.com/xavidop/mamori` package (no reconciler, Load/config, watch adapter, or server). Treat this as **confirmation**, not a blocker.
 
 Symbols the POC must share across the RPC / provider boundary:
 
@@ -110,7 +129,7 @@ Symbols the POC must share across the RPC / provider boundary:
 
 **POC approach:** provider executables may depend on full `github.com/xavidop/mamori` for the spike (they already do). The **resolver** module must not. Shared wire types can live in the resolver’s `rpc` package duplicated thinly, or a tiny local api module — perfection of the upstream split is not required to prove the claims.
 
-**Spike exit criteria:** resolver `go.mod` has no cloud SDKs and only minimal other deps; fake provider + one real provider (Vault or AWS) resolves end-to-end.
+**Spike exit criteria:** resolver `go.mod` has no provider SDKs and only minimal other deps; fake provider + **sqlite** resolves end-to-end locally.
 
 ---
 
@@ -124,7 +143,7 @@ Symbols the POC must share across the RPC / provider boundary:
 
 - Shared `rpc.ServeRegistered()` (or `Serve(providers...)`) lives in Mamori.
 - Each provider module gains a first-class server entrypoint (e.g. `providers/aws/cmd/mamori-provider-aws`, or a one-line `main` built in that provider’s CI) — part of that provider’s tree/release, whether Mamori-owned or vendor-owned; not an external generate hack.
-- In-process `Register` + blank-import remains for apps that still want to link providers; out-of-process becomes the path for “deps stay out of my binary / I only need Vault.”
+- In-process `Register` + blank-import remains for apps that still want to link providers; out-of-process becomes the path for “deps stay out of my binary / I only need sqlite.”
 - Resolver ships from Mamori; provider binaries ship from Mamori (built-ins) and from vendors (extensions) speaking the same RPC.
 
 POC generate wrappers demonstrate the wire protocol and dep split; migration makes providers the RPC servers of record.
@@ -164,7 +183,7 @@ func (r *Resolver) Resolve(
 func (r *Resolver) Close() error
 ```
 
-Return full `Value`, not bare `[]byte` — providers already set Version, Sensitive, NotAfter, Metadata (e.g. Vault leases, AWS SM sensitivity).
+Return full `Value`, not bare `[]byte` — providers already set Version, Sensitive, NotAfter, Metadata (e.g. AWS SM sensitivity; Vault leases when we add that provider later).
 
 Do **not** pull Mamori’s typed-config / watch / reconciliation machinery into this project.
 
@@ -265,17 +284,17 @@ func main() {
 }
 ```
 
-Manifest is package-level (one AWS package → three schemes: `aws-sm`, `aws-ps`, `aws-appconfig`).
+Manifest is package-level (one AWS package → three schemes: `aws-sm`, `aws-ps`, `aws-appconfig`; sqlite → `sqlite`).
 
 **Upstream migration (proposed, not POC work):** same binary shape, but `main` / `Serve` lives under each `providers/*` (or Mamori-owned `cmd/mamori-provider-*` built from that package), released as artifacts. Generate wrappers go away once providers are RPC servers.
 
 Resulting dependency split (POC and end state):
 
 ```
-mamori-resolver          ~minimal deps (no cloud SDKs; stdlib-first)
+mamori-resolver            ~minimal deps (no provider SDKs; stdlib-first)
 
-mamori-provider-aws      └ AWS SDK; schemes: aws-sm, aws-ps, aws-appconfig
-mamori-provider-vault    └ Vault SDK; scheme: vault
+mamori-provider-sqlite     └ modernc.org/sqlite (etc.); scheme: sqlite
+mamori-provider-aws        └ AWS SDK; schemes: aws-sm, aws-ps, aws-appconfig
 ```
 ---
 
@@ -283,13 +302,12 @@ mamori-provider-vault    └ Vault SDK; scheme: vault
 
 ```
 providers:
-  - command: mamori-provider-aws
+  - command: mamori-provider-sqlite
+    env:
+      SQLITE_PATH: /var/lib/mamori/demo.db
+  - command: mamori-provider-aws   # optional
     env:
       AWS_REGION: eu-west-1
-  - command: mamori-provider-vault
-    env:
-      VAULT_ADDR: https://vault.example:8200
-      VAULT_TOKEN: ...
 ```
 
 **POC credentials = process environment + each cloud SDK’s default credential chain** (env vars, shared config files, instance/workload identity, in-cluster config). No RPC for `WithToken` / `WithClient`. Document that limitation.
@@ -350,7 +368,7 @@ Resolver suite (fake provider executable → RPC → `Resolver`):
 - context timeout / deadline field
 - clean shutdown + Closer
 
-Hermetic CI: fake provider + Vault (or Vault-like fake). Real AWS optional/nightly, not required green path.
+Hermetic CI: fake provider + **sqlite** (temp DB file). Real AWS optional/nightly, not required green path.
 
 Reuse Mamori conformance *philosophy* (semantics), not necessarily by linking heavy `providertest` into the resolver module if that pulls unwanted deps.
 
@@ -362,15 +380,15 @@ Build:
 
 ```
 mamori-resolver
-mamori-provider-aws
-mamori-provider-vault
+mamori-provider-sqlite
+mamori-provider-aws      # optional for heavy-SDK demo
 ```
 
 Ship with the POC:
 
-1. **Demo script** — resolve one Vault URI and one AWS URI; show Vault-only config never starts the AWS process.
-2. **Measurements** — resolver `go mod graph` (no cloud SDKs; call out every direct dep), binary sizes, cold start, first/subsequent Resolve latency.
-3. **Design note** — why resolver + out-of-process providers belong **in Mamori**; why an external long-lived project is a bad fit; **POC bridge** (`go generate` wrappers, zero provider edits) vs **eventual migration** (providers become RPC servers; Mamori and vendors release prebuilt binaries so users need not compile provider source); sharp edges (stdio framing, errors, credentials).
+1. **Demo script** — resolve a `sqlite://…` URI from a local DB file; optionally show an AWS URI; show sqlite-only config never starts the AWS process.
+2. **Measurements** — resolver `go mod graph` (no provider SDKs; call out every direct dep), binary sizes, cold start, first/subsequent Resolve latency.
+3. **Design note** — **first: customer value** (existing Mamori users: selective install / smaller builds / same URIs; resolve-only newcomers: provider ecosystem without the full framework). Then: why this belongs **in Mamori**; why an external long-lived project is a bad fit; **POC bridge** (`go generate` wrappers) vs **eventual migration** (providers as RPC servers; Mamori and vendors release prebuilt binaries); sharp edges (stdio framing, errors, credentials).
 
 **POC success = maintainers can evaluate both claims from (1)–(3) and see a credible migration from generate wrappers to providers-as-RPC-servers upstream.** Production readiness and a permanent external repo are out of scope.
 
@@ -381,7 +399,7 @@ Ship with the POC:
 1. Phase 0 spike (resolver graph clean + one end-to-end resolve)
 2. Phases 3–4 protocol + shim + fake-provider tests
 3. Phases 2, 6–7 resolver host + lifecycle
-4. Phase 5 package AWS + Vault
+4. Phase 5 package sqlite (+ optional AWS)
 5. Phase 9 tests (enough to trust the demo)
 6. Phase 10 demo pack + design note
 7. Design note: migration path — providers as RPC servers (Mamori-owned binaries)
