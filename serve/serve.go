@@ -1,4 +1,4 @@
-// Package serve runs Mamori providers as stdio RPC servers for mamori-resolver.
+// Package serve runs Mamori providers as RPC servers for mamori-resolver.
 package serve
 
 import (
@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/rpc"
-	"os"
 	"runtime/debug"
 
 	"github.com/xavidop/mamori"
@@ -17,18 +16,18 @@ import (
 type Options struct {
 	Name    string // Info.ProviderName
 	Version string // Info.ProviderVersion; default: build info
-	Stdin   io.ReadCloser
-	Stdout  io.WriteCloser
+	// Conn is the RPC duplex. If nil, the inherited fd from MAMORI_RPC_FD
+	// (default 3 / ExtraFiles[0]) is used — stdout stays free for logging.
+	Conn io.ReadWriteCloser
 }
 
-// Serve exposes providers over framed gob net/rpc on stdin/stdout.
-// stderr is left for diagnostics. Does not blank-import or use mamori.Register;
-// pass provider instances explicitly (e.g. sqlite.New()).
+// Serve exposes providers over gob net/rpc on the inherited RPC fd.
+// Does not use mamori.Register; pass provider instances explicitly (e.g. sqlite.New()).
 func Serve(providers ...mamori.Provider) error {
 	return ServeWith(Options{}, providers...)
 }
 
-// ServeWith is Serve with explicit IO / naming.
+// ServeWith is Serve with explicit naming / connection.
 func ServeWith(opts Options, providers ...mamori.Provider) error {
 	if len(providers) == 0 {
 		return fmt.Errorf("serve: no providers")
@@ -55,24 +54,27 @@ func ServeWith(opts Options, providers ...mamori.Provider) error {
 	if opts.Version == "" {
 		opts.Version = buildVersion()
 	}
-	if opts.Stdin == nil {
-		opts.Stdin = os.Stdin
-	}
-	if opts.Stdout == nil {
-		opts.Stdout = os.Stdout
+
+	conn := opts.Conn
+	if conn == nil {
+		f, err := mrpc.OpenInherited()
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		conn = f
 	}
 
 	svc := &service{
-		name:    opts.Name,
-		version: opts.Version,
+		name:     opts.Name,
+		version:  opts.Version,
 		byScheme: byScheme,
-		schemes: schemes,
+		schemes:  schemes,
 	}
 	srv := rpc.NewServer()
 	if err := srv.RegisterName(mrpc.ServiceName, svc); err != nil {
 		return err
 	}
-	conn := mrpc.NewStdioConn(opts.Stdin, opts.Stdout)
 	mrpc.ServeConn(srv, conn)
 	for _, p := range providers {
 		if c, ok := p.(io.Closer); ok {
@@ -151,9 +153,7 @@ func mapErr(err error) *mrpc.RPCError {
 	if kind == "" {
 		kind = mamori.KindUnknown
 	}
-	// Never put secret material in Message; providers already avoid that.
 	msg := err.Error()
-	// Cap length to reduce accidental leakage of large payloads in errors.
 	const max = 512
 	if len(msg) > max {
 		msg = msg[:max] + "…"

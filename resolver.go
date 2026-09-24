@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 
 	"github.com/yaronf/mamori-resolver/rpc"
@@ -51,8 +52,7 @@ type providerProc struct {
 	cmd    *exec.Cmd
 	client *rpc.Client
 	info   *rpc.InfoResponse
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
+	rpcFile *os.File // parent end of the RPC socketpair
 }
 
 // New starts configured provider processes and discovers their schemes.
@@ -91,30 +91,29 @@ func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
 	if pcfg.Command == "" {
 		return nil, fmt.Errorf("%w: empty provider command", ErrInvalid)
 	}
+
+	parent, child, err := rpc.NewSocketPair()
+	if err != nil {
+		return nil, err
+	}
+
 	cmd := exec.Command(pcfg.Command, pcfg.Args...)
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), rpc.EnvRPCFD+"="+strconv.Itoa(rpc.DefaultRPCFD))
 	for k, v := range pcfg.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
+	// Leave stdout inherited so providers can log normally; forward stderr.
 	cmd.Stderr = r.stderr
+	cmd.ExtraFiles = []*os.File{child}
 
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = stdin.Close()
-		return nil, err
-	}
 	if err := cmd.Start(); err != nil {
-		_ = stdin.Close()
-		_ = stdout.Close()
+		_ = parent.Close()
+		_ = child.Close()
 		return nil, fmt.Errorf("start %s: %w", pcfg.Command, err)
 	}
+	_ = child.Close() // child process holds its own dup
 
-	conn := rpc.NewStdioConn(stdout, stdin)
-	client := rpc.NewTypedClient(rpc.NewClient(conn))
+	client := rpc.NewTypedClient(rpc.NewClient(parent))
 
 	ctx, cancel := rpc.PingDeadline()
 	defer cancel()
@@ -139,12 +138,11 @@ func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
 	}
 
 	return &providerProc{
-		cfg:    pcfg,
-		cmd:    cmd,
-		client: client,
-		info:   info,
-		stdin:  stdin,
-		stdout: stdout,
+		cfg:     pcfg,
+		cmd:     cmd,
+		client:  client,
+		info:    info,
+		rpcFile: parent,
 	}, nil
 }
 
@@ -193,6 +191,9 @@ func (r *Resolver) Close() error {
 			if err := p.client.Close(); err != nil && first == nil {
 				first = err
 			}
+		}
+		if p.rpcFile != nil {
+			_ = p.rpcFile.Close()
 		}
 		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()

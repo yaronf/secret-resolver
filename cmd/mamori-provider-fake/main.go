@@ -1,5 +1,6 @@
 // Command mamori-provider-fake is an in-memory provider for resolver tests.
 // Env FAKE_VALUES is JSON object map[string]string of full URI -> value.
+// RPC runs on the inherited MAMORI_RPC_FD (ExtraFiles); stdout stays free.
 package main
 
 import (
@@ -36,13 +37,19 @@ func main() {
 		list = append(list, s)
 	}
 
+	conn, err := mrpc.OpenInherited()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fake: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
 	svc := &fakeService{values: values, schemes: list}
 	srv := rpc.NewServer()
 	if err := srv.RegisterName(mrpc.ServiceName, svc); err != nil {
 		fmt.Fprintf(os.Stderr, "fake: register: %v\n", err)
 		os.Exit(1)
 	}
-	conn := mrpc.NewStdioConn(os.Stdin, os.Stdout)
 	mrpc.ServeConn(srv, conn)
 }
 

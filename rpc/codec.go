@@ -6,28 +6,6 @@ import (
 	"net/rpc"
 )
 
-// stdioConn is a full-duplex ReadWriteCloser over separate reader/writer
-// (child stdin/stdout or parent pipes). Close closes both ends.
-type stdioConn struct {
-	r io.ReadCloser
-	w io.WriteCloser
-}
-
-func NewStdioConn(r io.ReadCloser, w io.WriteCloser) io.ReadWriteCloser {
-	return &stdioConn{r: r, w: w}
-}
-
-func (c *stdioConn) Read(p []byte) (int, error)  { return c.r.Read(p) }
-func (c *stdioConn) Write(p []byte) (int, error) { return c.w.Write(p) }
-func (c *stdioConn) Close() error {
-	errW := c.w.Close()
-	errR := c.r.Close()
-	if errW != nil {
-		return errW
-	}
-	return errR
-}
-
 // gob codecs match stdlib net/rpc's gobClientCodec / gobServerCodec: no mutex.
 // Concurrent safety comes from rpc.Client.reqMutex (WriteRequest) and
 // Server.sendResponse's sending mutex (WriteResponse). Reads are single-goroutine.

@@ -59,7 +59,7 @@ URI → select provider process → stdio RPC → existing Mamori provider → V
               │ process manager       │
               │ framed net/rpc client │
               └───────────┬───────────┘
-                          │ stdin/stdout (framed)
+                          │ ExtraFiles fd (socketpair)
           ┌───────────────┼────────────────┐
           ▼               ▼                ▼
  mamori-provider-sqlite  mamori-provider-aws  ...
@@ -191,9 +191,7 @@ Do **not** pull Mamori’s typed-config / watch / reconciliation machinery into 
 
 ### Phase 3 — Tiny RPC protocol
 
-Stdlib `net/rpc` + gob over a **framed** full-duplex codec on the child’s stdin/stdout. Raw pipes are not enough; `net/rpc` needs an `io.ReadWriteCloser` with concurrent-safe framing (stdlib `rpc.Client` is concurrent-safe; the custom codec must be too — Mamori requires concurrent-safe `Resolve`, and tests will stress this).
-
-stderr is **diagnostics only** — never mix logs onto stdout.
+Stdlib `net/rpc` + gob on a **dedicated socketpair** fd (`ExtraFiles` / `MAMORI_RPC_FD=3`). Stdout stays free for logging.
 
 Protocol version applies to request/response shapes (`ProtocolVersion = 1` from day one). `ProviderVersion` is the provider binary/module version (distinct from `Value.Version`, which is a secret revision).
 
@@ -259,7 +257,7 @@ The shim:
 4. dispatches `Resolve` to the matching provider;
 5. translates `Value` / error kinds to wire types;
 6. on shutdown, calls `Close()` on providers that implement `io.Closer`;
-7. reserves stderr for diagnostics.
+7. serves RPC on the inherited dedicated fd (stdout free).
 
 Provider executables contain essentially **zero** hand-written RPC code.
 
@@ -382,7 +380,7 @@ Ship with the POC:
 
 1. **Demo script** — resolve a `sqlite://…` URI from a local DB file; optionally show an AWS URI; show sqlite-only config never starts the AWS process.
 2. **Measurements** — resolver `go mod graph` (no provider SDKs; call out every direct dep), binary sizes, cold start, first/subsequent Resolve latency.
-3. **Design note** — **first: customer value** (existing Mamori users: selective install / smaller builds / same URIs; resolve-only newcomers: already have config, want Mamori only for secrets). Then: why this belongs **in Mamori**; why an external long-lived project is a bad fit; **POC bridge** (`go generate` wrappers) vs **eventual migration** (providers as RPC servers; Mamori and vendors release prebuilt binaries); sharp edges (stdio framing, errors, credentials).
+3. **Design note** — **first: customer value** (...). Then: upstream home, generate bridge → providers-as-RPC-servers, dedicated RPC fd, Resolve-only.
 
 **POC success = maintainers can evaluate both claims from (1)–(3) and see a credible migration from generate wrappers to providers-as-RPC-servers upstream.** Production readiness and a permanent external repo are out of scope.
 

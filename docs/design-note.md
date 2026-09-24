@@ -31,9 +31,12 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 `mamori.Register`’s lookup is unexported today, so the POC passes provider instances into `Serve` instead of blank-import + `ServeRegistered`. Upstream may export `ProviderFor` or keep explicit `Serve(New())`.
 
-## Sharp edges
+## Transport
 
-- stdio + gob `net/rpc` needs a careful codec; stderr is diagnostics only.
+RPC runs on a **dedicated Unix socketpair** fd passed via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for normal provider logging; stderr is forwarded to the host. No stdin/stdout framing.
+
+## Limitations (POC)
+
 - Context cancel stops waiting locally; optional `Deadline` on the request bounds the child.
 - Credentials: env + cloud default chains only in the POC.
 - Resolve-only; Watch is a later design.
