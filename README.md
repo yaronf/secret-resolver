@@ -4,15 +4,23 @@ POC: resolve Mamori URIs via a thin host that loads **out-of-process provider pl
 
 See [docs/plan.md](docs/plan.md) for goals and [docs/design-note.md](docs/design-note.md) for the maintainer-facing writeup.
 
-## Provider binaries (`go generate`)
+## Provider binaries
 
-Edit [`providers.manifest.json`](providers.manifest.json), then:
+Add a Mamori provider package with the script (updates the manifest and runs `go generate`):
 
 ```bash
-go generate .
+./scripts/add-provider github.com/xavidop/mamori/providers/vault
 ```
 
-That writes `cmd/mamori-provider-<name>/main.go` (and a starter `go.mod` if missing). Then `go mod tidy` / `go build` in that directory. Fake provider stays hand-written (not a Mamori package).
+Field meanings and multi-constructor examples: [docs/providers-manifest.md](docs/providers-manifest.md).
+
+Then in the generated directory:
+
+```bash
+cd cmd/mamori-provider-vault && go mod tidy && go build
+```
+
+Fake provider stays hand-written (not a Mamori package).
 
 ## Quick demo (sqlite)
 
@@ -42,7 +50,7 @@ Library usage is the same shape: `resolver.New(resolver.WithProviders(...))`. If
 | `.` (this module) | `Resolver`, RPC client — minimal deps |
 | `serve/` | Provider-side `Serve(...)` shim (depends on Mamori) |
 | `cmd/mamori-resolver` | CLI over the API |
-| `providers.manifest.json` + `internal/generate` | `go generate` → provider mains |
+| `scripts/add-provider` + `providers.manifest.json` | add providers → generate mains |
 | `cmd/mamori-provider-sqlite` | Generated wrapper around Mamori sqlite |
 | `cmd/mamori-provider-aws` | Generated wrapper (optional heavy-SDK demo) |
 | `cmd/mamori-provider-fake` | Hand-written in-memory provider for tests |
