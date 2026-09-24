@@ -6,15 +6,15 @@ See [docs/plan.md](docs/plan.md) for goals and [docs/design-note.md](docs/design
 
 ## Provider binaries
 
-Add a Mamori provider package with the script (updates the manifest and runs `go generate`):
+Add a Mamori provider package (updates [`providers.manifest.json`](providers.manifest.json) and runs `go generate`):
 
 ```bash
 ./scripts/add-provider github.com/xavidop/mamori/providers/vault
 ```
 
-Requires a Mamori tree that exports `Providers()` (see [docs/providers-manifest.md](docs/providers-manifest.md)). Field list is just `name` + `import`.
+The manifest is just `name` + `import`. The generated main blank-imports that package and calls `serve.ServeRegistered()` — schemes come from whatever `init` registered. This needs Mamori’s `Providers()` export (this POC `replace`s a local mamori tree that has it).
 
-Then in the generated directory:
+Then:
 
 ```bash
 cd cmd/mamori-provider-vault && go mod tidy && go build
