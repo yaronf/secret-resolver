@@ -8,26 +8,28 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/yaronf/mamori-resolver/config"
 	"github.com/yaronf/mamori-resolver/rpc"
 )
+
+// Provider is one out-of-process provider plugin. Configure via the API
+// (WithProviders); a file format belongs in Mamori's own config if/when this
+// lands upstream — not a parallel JSON schema here.
+type Provider struct {
+	Command string
+	Args    []string
+	Env     map[string]string
+}
 
 // Option configures New.
 type Option func(*options)
 
 type options struct {
-	configPath string
-	providers  []config.Provider
-	stderr     io.Writer
+	providers []Provider
+	stderr    io.Writer
 }
 
-// WithConfigFile loads providers from a JSON config file.
-func WithConfigFile(path string) Option {
-	return func(o *options) { o.configPath = path }
-}
-
-// WithProviders sets the provider list directly (tests / embedding).
-func WithProviders(ps ...config.Provider) Option {
+// WithProviders registers provider child processes (required).
+func WithProviders(ps ...Provider) Option {
 	return func(o *options) { o.providers = append(o.providers, ps...) }
 }
 
@@ -45,7 +47,7 @@ type Resolver struct {
 }
 
 type providerProc struct {
-	cfg    config.Provider
+	cfg    Provider
 	cmd    *exec.Cmd
 	client *rpc.Client
 	info   *rpc.InfoResponse
@@ -59,23 +61,15 @@ func New(opts ...Option) (*Resolver, error) {
 	for _, fn := range opts {
 		fn(&o)
 	}
-	providers := o.providers
-	if o.configPath != "" {
-		f, err := config.LoadJSON(o.configPath)
-		if err != nil {
-			return nil, err
-		}
-		providers = append(providers, f.Providers...)
-	}
-	if len(providers) == 0 {
-		return nil, fmt.Errorf("%w: no providers configured", ErrInvalid)
+	if len(o.providers) == 0 {
+		return nil, fmt.Errorf("%w: no providers configured (use WithProviders)", ErrInvalid)
 	}
 
 	r := &Resolver{
 		byScheme: make(map[string]*providerProc),
 		stderr:   o.stderr,
 	}
-	for _, pcfg := range providers {
+	for _, pcfg := range o.providers {
 		p, err := r.startProvider(pcfg)
 		if err != nil {
 			_ = r.Close()
@@ -93,7 +87,10 @@ func New(opts ...Option) (*Resolver, error) {
 	return r, nil
 }
 
-func (r *Resolver) startProvider(pcfg config.Provider) (*providerProc, error) {
+func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
+	if pcfg.Command == "" {
+		return nil, fmt.Errorf("%w: empty provider command", ErrInvalid)
+	}
 	cmd := exec.Command(pcfg.Command, pcfg.Args...)
 	cmd.Env = os.Environ()
 	for k, v := range pcfg.Env {

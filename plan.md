@@ -49,7 +49,7 @@ So the POC’s job is persuasion toward upstream adoption — not founding an in
 URI → select provider process → stdio RPC → existing Mamori provider → Value
 ```
 
-`mamori-resolver` has **no** AWS/GCP/Azure/Vault/SQLite/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec, small config parse). Provider SDKs live only in separately built `mamori-provider-*` executables.
+`mamori-resolver` has **no** AWS/GCP/Azure/Vault/SQLite/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec). Provider SDKs live only in separately built `mamori-provider-*` executables.
 
 ```
                     mamori-resolver
@@ -103,7 +103,7 @@ Artifacts to hand over: runnable POC, README demo script, dependency-graph / bin
 
 ## Deliverables (POC-scoped)
 
-1. **`mamori-resolver`** — process manager + framed `net/rpc` + config/discovery + public `Resolve` API (spike module; intended upstream shape).
+1. **`mamori-resolver`** — process manager + framed `net/rpc` + discovery + public `Resolve` / `WithProviders` API (spike module; intended upstream shape).
 2. **Provider binaries (POC bridge)** — `go generate` → `mamori-provider-sqlite` (required demo) and optionally `mamori-provider-aws` via blank-import + `ServeRegistered()`; **zero edits** to existing provider packages.
 3. **Minimal wire/SPI types in the resolver** — enough for the RPC boundary. Provider children keep importing full `github.com/xavidop/mamori` as today.
 4. **Design note** — includes the **migration proposal**: move from generate wrappers to providers shipping as RPC servers upstream.
@@ -300,29 +300,23 @@ mamori-provider-aws        └ AWS SDK; schemes: aws-sm, aws-ps, aws-appconfig
 
 ### Phase 6 — Configuration and discovery
 
-```
-providers:
-  - command: mamori-provider-sqlite
-    env:
-      SQLITE_PATH: /var/lib/mamori/demo.db
-  - command: mamori-provider-aws   # optional
-    env:
-      AWS_REGION: eu-west-1
-```
+**POC:** configure only via API — `resolver.WithProviders(resolver.Provider{Command, Args, Env}...)`. The demo CLI maps flags (`-provider`, `-env`) onto that API. **No** separate resolver JSON/YAML schema.
+
+**Upstream:** if Mamori grows a file format for out-of-process providers, it belongs in **Mamori’s existing YAML config**, not a parallel format in this module.
 
 **POC credentials = process environment + each cloud SDK’s default credential chain** (env vars, shared config files, instance/workload identity, in-cluster config). No RPC for `WithToken` / `WithClient`. Document that limitation.
 
 Startup:
 
 ```
-read config
+WithProviders / CLI flags
   → exec each command (inherit/override env)
   → establish framed stdio RPC
   → Mamori.Info()
   → register every returned scheme → that process
 ```
 
-YAML does **not** list schemes; the executable is authoritative. Duplicate schemes across processes are a **startup error**.
+Config does **not** list schemes; the executable is authoritative. Duplicate schemes across processes are a **startup error**.
 
 ---
 

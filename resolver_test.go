@@ -13,7 +13,6 @@ import (
 	"time"
 
 	resolver "github.com/yaronf/mamori-resolver"
-	"github.com/yaronf/mamori-resolver/config"
 )
 
 func TestResolveViaFakeProvider(t *testing.T) {
@@ -23,7 +22,7 @@ func TestResolveViaFakeProvider(t *testing.T) {
 		"fake://bin":   "a\x00b",
 	})
 
-	r, err := resolver.New(resolver.WithProviders(config.Provider{
+	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": string(values)},
 	}))
@@ -65,7 +64,7 @@ func TestConcurrentResolve(t *testing.T) {
 	}
 	b, _ := json.Marshal(m)
 
-	r, err := resolver.New(resolver.WithProviders(config.Provider{
+	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": string(b)},
 	}))
@@ -101,7 +100,7 @@ func TestConcurrentResolve(t *testing.T) {
 
 func TestUnknownScheme(t *testing.T) {
 	fake := buildFake(t)
-	r, err := resolver.New(resolver.WithProviders(config.Provider{
+	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": `{"fake://x":"y"}`},
 	}))

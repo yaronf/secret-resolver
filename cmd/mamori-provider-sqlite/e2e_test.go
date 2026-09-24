@@ -12,7 +12,6 @@ import (
 	_ "modernc.org/sqlite"
 
 	resolver "github.com/yaronf/mamori-resolver"
-	"github.com/yaronf/mamori-resolver/config"
 )
 
 func TestResolveViaSQLiteProvider(t *testing.T) {
@@ -30,7 +29,7 @@ func TestResolveViaSQLiteProvider(t *testing.T) {
 		t.Fatalf("build sqlite provider: %v\n%s", err, out)
 	}
 
-	r, err := resolver.New(resolver.WithProviders(config.Provider{
+	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
 		Command: bin,
 		Env:     map[string]string{"SQLITE_PATH": dbPath},
 	}))

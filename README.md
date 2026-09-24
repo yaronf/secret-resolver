@@ -14,10 +14,14 @@ go build -o bin/mamori-provider-sqlite ./cmd/mamori-provider-sqlite
 # seed a tiny DB
 go run ./examples/seed-sqlite -db /tmp/mamori-demo.db
 
-# resolve
-./bin/mamori-resolver -config examples/providers.sqlite.json \
+# resolve (API / flags — no separate config file format)
+./bin/mamori-resolver \
+  -provider ./bin/mamori-provider-sqlite \
+  -env SQLITE_PATH=/tmp/mamori-demo.db \
   'sqlite://config/greeting'
 ```
+
+Library usage is the same shape: `resolver.New(resolver.WithProviders(...))`. If this lands in Mamori, provider lists belong in **Mamori’s YAML**, not a parallel schema here.
 
 `go.mod` at the repo root must stay free of `github.com/xavidop/mamori` and provider SDKs. Provider binaries live under `cmd/mamori-provider-*` / `serve/` and pull those deps themselves.
 
@@ -25,8 +29,8 @@ go run ./examples/seed-sqlite -db /tmp/mamori-demo.db
 
 | Path | Role |
 | --- | --- |
-| `.` (this module) | `Resolver`, RPC client, config — minimal deps |
+| `.` (this module) | `Resolver`, RPC client — minimal deps |
 | `serve/` | Provider-side `Serve(...)` shim (depends on Mamori) |
-| `cmd/mamori-resolver` | CLI |
+| `cmd/mamori-resolver` | CLI over the API |
 | `cmd/mamori-provider-fake` | In-memory provider for tests |
 | `cmd/mamori-provider-sqlite` | Real Mamori sqlite provider as RPC server |

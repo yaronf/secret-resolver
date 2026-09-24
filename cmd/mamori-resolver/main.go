@@ -6,21 +6,42 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	resolver "github.com/yaronf/mamori-resolver"
 )
 
 func main() {
-	cfg := flag.String("config", "", "path to JSON config listing provider commands")
-	timeout := flag.Duration("timeout", 30*time.Second, "per-resolve timeout")
+	var (
+		providers stringList
+		envs      stringList
+		timeout   = flag.Duration("timeout", 30*time.Second, "per-resolve timeout")
+	)
+	flag.Var(&providers, "provider", "provider command (repeatable)")
+	flag.Var(&envs, "env", "KEY=VALUE for provider processes (repeatable)")
 	flag.Parse()
-	if *cfg == "" || flag.NArg() < 1 {
-		fmt.Fprintf(os.Stderr, "usage: mamori-resolver -config providers.json <uri>\n")
+	if len(providers) == 0 || flag.NArg() < 1 {
+		fmt.Fprintf(os.Stderr, "usage: mamori-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] <uri>\n")
 		os.Exit(2)
 	}
 
-	r, err := resolver.New(resolver.WithConfigFile(*cfg))
+	envMap := map[string]string{}
+	for _, e := range envs {
+		k, v, ok := strings.Cut(e, "=")
+		if !ok || k == "" {
+			fmt.Fprintf(os.Stderr, "resolver: bad -env %q (want KEY=VALUE)\n", e)
+			os.Exit(2)
+		}
+		envMap[k] = v
+	}
+
+	ps := make([]resolver.Provider, 0, len(providers))
+	for _, cmd := range providers {
+		ps = append(ps, resolver.Provider{Command: cmd, Env: envMap})
+	}
+
+	r, err := resolver.New(resolver.WithProviders(ps...))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "resolver: %v\n", err)
 		os.Exit(1)
@@ -48,4 +69,12 @@ func main() {
 		Sensitive: v.Sensitive,
 		Metadata:  v.Metadata,
 	})
+}
+
+type stringList []string
+
+func (s *stringList) String() string { return strings.Join(*s, ",") }
+func (s *stringList) Set(v string) error {
+	*s = append(*s, v)
+	return nil
 }
