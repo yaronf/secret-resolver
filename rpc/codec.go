@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"io"
 	"net/rpc"
-	"sync"
 )
 
 // stdioConn is a full-duplex ReadWriteCloser over separate reader/writer
@@ -29,14 +28,13 @@ func (c *stdioConn) Close() error {
 	return errR
 }
 
-// gobServerCodec / gobClientCodec wrap net/rpc's default gob framing over a
-// shared conn. rpc.Client is safe for concurrent use; encoders/decoders are
-// guarded here for the server side's ServeCodec loop.
+// gob codecs match stdlib net/rpc's gobClientCodec / gobServerCodec: no mutex.
+// Concurrent safety comes from rpc.Client.reqMutex (WriteRequest) and
+// Server.sendResponse's sending mutex (WriteResponse). Reads are single-goroutine.
 type gobServerCodec struct {
 	rwc io.ReadWriteCloser
 	dec *gob.Decoder
 	enc *gob.Encoder
-	mu  sync.Mutex
 }
 
 func newGobServerCodec(conn io.ReadWriteCloser) *gobServerCodec {
@@ -56,8 +54,6 @@ func (c *gobServerCodec) ReadRequestBody(body any) error {
 }
 
 func (c *gobServerCodec) WriteResponse(r *rpc.Response, body any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if err := c.enc.Encode(r); err != nil {
 		return err
 	}
@@ -70,7 +66,6 @@ type gobClientCodec struct {
 	rwc io.ReadWriteCloser
 	dec *gob.Decoder
 	enc *gob.Encoder
-	mu  sync.Mutex
 }
 
 func newGobClientCodec(conn io.ReadWriteCloser) *gobClientCodec {
@@ -82,8 +77,6 @@ func newGobClientCodec(conn io.ReadWriteCloser) *gobClientCodec {
 }
 
 func (c *gobClientCodec) WriteRequest(r *rpc.Request, body any) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	if err := c.enc.Encode(r); err != nil {
 		return err
 	}
