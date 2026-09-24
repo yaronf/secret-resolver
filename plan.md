@@ -39,9 +39,9 @@ The maintainer pitch (architecture, process model, upstream home) comes **after*
 
 The resolver depends **100% on Mamori**, and especially on **the provider packages** (APIs, schemes, error semantics, SDKs, release cadence). A forever-external `mamori-resolver` would be a tracking tax: every Mamori provider change, new scheme, or SPI tweak becomes our breakage. The only durable home is **upstream Mamori** (or an officially maintained Mamori subproject).
 
-So the POC’s job is persuasion toward upstream adoption — not founding an independent product. Spike code lives in a **local git repo** beside `mamori.git` for now (no remote required); the design note must say clearly that long-term maintenance outside Mamori is a non-starter.
+So the POC’s job is persuasion toward upstream adoption — not founding an independent product. Spike code lives in this repo (`mamori-resolver/`, sibling of `mamori.git`); private remote for collaboration/backup. Long-term maintenance outside Mamori remains a non-starter — the design note must say so.
 
-**Spike layout:** this repository (`mamori-resolver/`, sibling of `mamori.git`) — local `git` only for now, no remote until/unless maintainers want it upstream. Reuse the existing `providers/*` modules and `Register` SPI via `replace` / local paths as needed.
+**Spike layout:** this repository — private GitHub remote (`yaronf/mamori-resolver`) for now; durable home is still upstream Mamori if maintainers adopt it. Reuse the existing `providers/*` modules and `Register` SPI via `replace` / local paths as needed.
 
 ## Target
 
