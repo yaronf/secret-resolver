@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"os"
 
-	prov "github.com/xavidop/mamori/providers/sqlite"
+	prov "github.com/xavidop/mamori/providers/aws"
 	"github.com/yaronf/mamori-resolver/serve"
 )
 
 func main() {
 	if err := serve.ServeWith(serve.Options{
-		Name: "sqlite",
-	}, prov.New()); err != nil {
-		fmt.Fprintf(os.Stderr, "mamori-provider-sqlite: %v\n", err)
+		Name: "aws",
+	}, prov.NewSecretsManager(), prov.NewParameterStore(), prov.NewAppConfig()); err != nil {
+		fmt.Fprintf(os.Stderr, "mamori-provider-aws: %v\n", err)
 		os.Exit(1)
 	}
 }

@@ -4,6 +4,16 @@ POC: resolve Mamori URIs via a thin host that loads **out-of-process provider pl
 
 See [plan.md](plan.md) for goals and [docs/design-note.md](docs/design-note.md) for the maintainer-facing writeup.
 
+## Provider binaries (`go generate`)
+
+Edit [`providers.manifest.json`](providers.manifest.json), then:
+
+```bash
+go generate .
+```
+
+That writes `cmd/mamori-provider-<name>/main.go` (and a starter `go.mod` if missing). Then `go mod tidy` / `go build` in that directory. Fake provider stays hand-written (not a Mamori package).
+
 ## Quick demo (sqlite)
 
 ```bash
@@ -32,5 +42,7 @@ Library usage is the same shape: `resolver.New(resolver.WithProviders(...))`. If
 | `.` (this module) | `Resolver`, RPC client — minimal deps |
 | `serve/` | Provider-side `Serve(...)` shim (depends on Mamori) |
 | `cmd/mamori-resolver` | CLI over the API |
-| `cmd/mamori-provider-fake` | In-memory provider for tests |
-| `cmd/mamori-provider-sqlite` | Real Mamori sqlite provider as RPC server |
+| `providers.manifest.json` + `internal/generate` | `go generate` → provider mains |
+| `cmd/mamori-provider-sqlite` | Generated wrapper around Mamori sqlite |
+| `cmd/mamori-provider-aws` | Generated wrapper (optional heavy-SDK demo) |
+| `cmd/mamori-provider-fake` | Hand-written in-memory provider for tests |

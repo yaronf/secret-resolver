@@ -23,7 +23,7 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 | Now (this POC) | Eventual proposal |
 | --- | --- |
-| `go generate` / thin `main` calling `serve.Serve(sqlite.New())` — **zero edits** to provider packages | Providers become first-class RPC servers under `providers/*/cmd/…`; Mamori CI releases binaries |
+| `go generate` from `providers.manifest.json` → `serve.Serve(prov.New…())` wrappers — **zero edits** to Mamori provider packages | Providers become first-class RPC servers under `providers/*/cmd/…`; Mamori CI releases binaries |
 | Proves wire protocol + dep split | Users download binaries; need not compile provider source |
 
 `mamori.Register`’s lookup is unexported today, so the POC passes provider instances into `Serve` instead of blank-import + `ServeRegistered`. Upstream may export `ProviderFor` or keep explicit `Serve(New())`.
