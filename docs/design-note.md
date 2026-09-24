@@ -41,8 +41,8 @@ RPC runs on a **dedicated Unix socketpair** fd passed via `exec.Cmd.ExtraFiles` 
 - Credentials: env + cloud default chains only in the POC.
 - Resolve-only; Watch is a later design.
 
-## Evidence from this spike
+## Evidence from this POC
 
 - Root `go.mod` has **no** `github.com/xavidop/mamori` and no provider SDKs.
-- Fake + sqlite providers resolve end-to-end over stdio RPC.
+- Fake + sqlite providers resolve end-to-end over a dedicated RPC fd.
 - Concurrent Resolve works against one child process.

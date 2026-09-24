@@ -2,7 +2,7 @@
 
 POC: resolve Mamori URIs via a thin host that loads **out-of-process provider plugins** over stdio RPC — no cloud/provider SDKs in the resolver module.
 
-See [plan.md](plan.md) for goals and [docs/design-note.md](docs/design-note.md) for the maintainer-facing writeup.
+See [docs/plan.md](docs/plan.md) for goals and [docs/design-note.md](docs/design-note.md) for the maintainer-facing writeup.
 
 ## Provider binaries (`go generate`)
 
