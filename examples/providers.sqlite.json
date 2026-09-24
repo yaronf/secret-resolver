@@ -1,0 +1,10 @@
+{
+  "providers": [
+    {
+      "command": "./bin/mamori-provider-sqlite",
+      "env": {
+        "SQLITE_PATH": "/tmp/mamori-demo.db"
+      }
+    }
+  ]
+}
