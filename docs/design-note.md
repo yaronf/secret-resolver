@@ -33,10 +33,21 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 ## Transport
 
-RPC runs on a **dedicated Unix socketpair** fd passed via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for normal provider logging; stderr is forwarded to the host. No stdin/stdout framing.
+**This POC:** RPC on a **dedicated Unix socketpair** fd via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for provider logging; stderr is forwarded to the host. No stdin/stdout framing. Inheritance is the authentication — no shared secret.
+
+**Unix only** (Linux, macOS, …). Mamori’s CI still builds/vets on Windows, so an upstream landing needs a portable path. Candidates (not implemented here):
+
+1. **Loopback TCP + handshake token** (smallest cross-platform change)  
+   Host `listen 127.0.0.1:0` → pass `MAMORI_RPC_ADDR` + `MAMORI_RPC_TOKEN` in **env** (never argv — shows up in `ps` / cmdline) → child dials → host **Accept once**, close listener, reject wrong/missing token. Token is required: anything on the machine can race the open port before the child connects. Clear the token from the child’s env after auth if desired.
+
+2. **Unix domain socket path + Windows named pipe** (HashiCorp go-plugin style)  
+   Random name, `0600` / same-user ACL; avoids the localhost accept race. Not one stdlib API — platform code (and likely a small Windows helper dep). Preferable long-term if upstream wants to avoid TCP entirely; FIFOs are *not* a substitute (half-duplex).
+
+Socketpair stays the POC default: fewest deps, no filesystem name, no token. Portable transport is a follow-up, not a blocker for proving the dep split.
 
 ## Limitations (POC)
 
+- **Unix-only** host↔child transport (`socketpair` + `ExtraFiles`); Windows alternatives documented above, not coded.
 - Context cancel stops waiting locally; optional `Deadline` on the request bounds the child.
 - Credentials: env + cloud default chains only in the POC.
 - Resolve-only; Watch is a later design.

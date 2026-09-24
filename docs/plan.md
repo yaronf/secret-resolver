@@ -191,7 +191,7 @@ Do **not** pull Mamori’s typed-config / watch / reconciliation machinery into 
 
 ### Phase 3 — Tiny RPC protocol
 
-Stdlib `net/rpc` + gob on a **dedicated socketpair** fd (`ExtraFiles` / `MAMORI_RPC_FD=3`). Stdout stays free for logging.
+Stdlib `net/rpc` + gob on a **dedicated socketpair** fd (`ExtraFiles` / `MAMORI_RPC_FD=3`). Stdout stays free for logging. Portable alternatives for Windows (loopback + env handshake token; UDS + named pipe) — see design-note Transport; keep socketpair for this POC.
 
 Protocol version applies to request/response shapes (`ProtocolVersion = 1` from day one). `ProviderVersion` is the provider binary/module version (distinct from `Value.Version`, which is a secret revision).
 
