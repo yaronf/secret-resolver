@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	prov "github.com/xavidop/mamori/providers/aws"
+	_ "github.com/xavidop/mamori/providers/aws"
 	"github.com/yaronf/mamori-resolver/serve"
 )
 
 func main() {
-	if err := serve.ServeWith(serve.Options{
-		Name: "aws",
-	}, prov.NewSecretsManager(), prov.NewParameterStore(), prov.NewAppConfig()); err != nil {
+	if err := serve.ServeRegistered(serve.Options{Name: "aws"}); err != nil {
 		fmt.Fprintf(os.Stderr, "mamori-provider-aws: %v\n", err)
 		os.Exit(1)
 	}

@@ -2,13 +2,11 @@
   "providers": [
     {
       "name": "sqlite",
-      "import": "github.com/xavidop/mamori/providers/sqlite",
-      "new": ["New()"]
+      "import": "github.com/xavidop/mamori/providers/sqlite"
     },
     {
       "name": "aws",
-      "import": "github.com/xavidop/mamori/providers/aws",
-      "new": ["NewSecretsManager()", "NewParameterStore()", "NewAppConfig()"]
+      "import": "github.com/xavidop/mamori/providers/aws"
     }
   ]
 }

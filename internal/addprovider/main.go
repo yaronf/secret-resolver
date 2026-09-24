@@ -1,8 +1,6 @@
 // Command addprovider appends a provider to providers.manifest.json and regenerates mains.
 //
 //	go run ./internal/addprovider -import github.com/xavidop/mamori/providers/vault
-//	go run ./internal/addprovider -import github.com/xavidop/mamori/providers/aws \
-//	  -new NewSecretsManager() -new NewParameterStore() -new NewAppConfig()
 package main
 
 import (
@@ -13,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 type manifest struct {
@@ -21,29 +18,25 @@ type manifest struct {
 }
 
 type provider struct {
-	Name   string   `json:"name"`
-	Import string   `json:"import"`
-	New    []string `json:"new"`
+	Name   string `json:"name"`
+	Import string `json:"import"`
 }
 
 func main() {
 	var (
-		name   = flag.String("name", "", "binary/provider name (default: last path segment of -import)")
-		imp    = flag.String("import", "", "Go import path, e.g. github.com/xavidop/mamori/providers/vault")
-		news   stringList
-		noGen  = flag.Bool("nogen", false, "update manifest only; skip go generate")
+		name  = flag.String("name", "", "binary/provider name (default: last path segment of -import)")
+		imp   = flag.String("import", "", "Go import path, e.g. github.com/xavidop/mamori/providers/vault")
+		noGen = flag.Bool("nogen", false, "update manifest only; skip go generate")
 	)
-	flag.Var(&news, "new", "constructor call to serve, e.g. New() (repeatable; default New())")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, `Usage: go run ./internal/addprovider -import <path> [-name <name>] [-new New()]...
+		fmt.Fprintf(os.Stderr, `Usage: go run ./internal/addprovider -import <path> [-name <name>]
 
 Adds a Mamori provider package to providers.manifest.json and runs go generate
-unless -nogen is set.
+unless -nogen is set. The package's init() must Register its providers; the
+generated main blank-imports the package and calls serve.ServeRegistered().
 
-Examples:
+Example:
   go run ./internal/addprovider -import github.com/xavidop/mamori/providers/vault
-  go run ./internal/addprovider -import github.com/xavidop/mamori/providers/aws \
-    -new NewSecretsManager() -new NewParameterStore() -new NewAppConfig()
 
 `)
 		flag.PrintDefaults()
@@ -63,16 +56,6 @@ Examples:
 	if pName == "" {
 		pName = filepath.Base(*imp)
 	}
-	ctors := []string(news)
-	if len(ctors) == 0 {
-		ctors = []string{"New()"}
-	}
-	for i, c := range ctors {
-		ctors[i] = strings.TrimSpace(c)
-		if ctors[i] == "" {
-			fatal(fmt.Errorf("empty -new"))
-		}
-	}
 
 	path := filepath.Join(root, "providers.manifest.json")
 	raw, err := os.ReadFile(path)
@@ -88,11 +71,7 @@ Examples:
 			fatal(fmt.Errorf("provider %q already in manifest", pName))
 		}
 	}
-	m.Providers = append(m.Providers, provider{
-		Name:   pName,
-		Import: *imp,
-		New:    ctors,
-	})
+	m.Providers = append(m.Providers, provider{Name: pName, Import: *imp})
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -116,14 +95,6 @@ Examples:
 		}
 		fmt.Printf("next: cd cmd/mamori-provider-%s && go mod tidy && go build\n", pName)
 	}
-}
-
-type stringList []string
-
-func (s *stringList) String() string { return strings.Join(*s, ", ") }
-func (s *stringList) Set(v string) error {
-	*s = append(*s, v)
-	return nil
 }
 
 func findRoot() (string, error) {

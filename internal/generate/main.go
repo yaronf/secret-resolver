@@ -1,6 +1,6 @@
 // Command generate writes cmd/mamori-provider-*/main.go from providers.manifest.json.
 //
-//	go generate ./...
+//	go generate .
 package main
 
 import (
@@ -19,9 +19,8 @@ type manifest struct {
 }
 
 type provider struct {
-	Name   string   `json:"name"`
-	Import string   `json:"import"`
-	New    []string `json:"new"` // e.g. ["New()"] or ["NewSecretsManager()", ...]
+	Name   string `json:"name"`
+	Import string `json:"import"`
 }
 
 func main() {
@@ -44,23 +43,15 @@ func main() {
 
 	tmpl := template.Must(template.New("main").Parse(mainTmpl))
 	for _, p := range m.Providers {
-		if p.Name == "" || p.Import == "" || len(p.New) == 0 {
-			fatal(fmt.Errorf("provider %q: name, import, and new are required", p.Name))
-		}
-		ctors := make([]string, len(p.New))
-		for i, n := range p.New {
-			ctors[i] = "prov." + strings.TrimSpace(n)
+		if p.Name == "" || p.Import == "" {
+			fatal(fmt.Errorf("provider: name and import are required"))
 		}
 		dir := filepath.Join(root, "cmd", "mamori-provider-"+p.Name)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			fatal(err)
 		}
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, map[string]any{
-			"Name":         p.Name,
-			"Import":       p.Import,
-			"Constructors": strings.Join(ctors, ", "),
-		}); err != nil {
+		if err := tmpl.Execute(&buf, p); err != nil {
 			fatal(err)
 		}
 		formatted, err := format.Source(buf.Bytes())
@@ -134,14 +125,12 @@ import (
 	"fmt"
 	"os"
 
-	prov "{{.Import}}"
+	_ "{{.Import}}"
 	"github.com/yaronf/mamori-resolver/serve"
 )
 
 func main() {
-	if err := serve.ServeWith(serve.Options{
-		Name: "{{.Name}}",
-	}, {{.Constructors}}); err != nil {
+	if err := serve.ServeRegistered(serve.Options{Name: "{{.Name}}"}); err != nil {
 		fmt.Fprintf(os.Stderr, "mamori-provider-{{.Name}}: %v\n", err)
 		os.Exit(1)
 	}

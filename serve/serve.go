@@ -21,10 +21,24 @@ type Options struct {
 	Conn io.ReadWriteCloser
 }
 
-// Serve exposes providers over gob net/rpc on the inherited RPC fd.
-// Does not use mamori.Register; pass provider instances explicitly (e.g. sqlite.New()).
+// Serve exposes the given providers over gob net/rpc on the inherited RPC fd.
 func Serve(providers ...mamori.Provider) error {
 	return ServeWith(Options{}, providers...)
+}
+
+// ServeRegistered serves every provider currently in mamori's registry (typically
+// populated by blank-importing provider packages whose init calls Register).
+// Requires mamori.Providers() (exported registry snapshot).
+func ServeRegistered(opts ...Options) error {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	ps := mamori.Providers()
+	if len(ps) == 0 {
+		return fmt.Errorf("serve: no providers registered (blank-import a provider package?)")
+	}
+	return ServeWith(o, ps...)
 }
 
 // ServeWith is Serve with explicit naming / connection.

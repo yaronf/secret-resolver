@@ -12,7 +12,7 @@ Add a Mamori provider package with the script (updates the manifest and runs `go
 ./scripts/add-provider github.com/xavidop/mamori/providers/vault
 ```
 
-Field meanings and multi-constructor examples: [docs/providers-manifest.md](docs/providers-manifest.md).
+Requires a Mamori tree that exports `Providers()` (see [docs/providers-manifest.md](docs/providers-manifest.md)). Field list is just `name` + `import`.
 
 Then in the generated directory:
 

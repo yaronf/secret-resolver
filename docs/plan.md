@@ -141,7 +141,7 @@ Symbols the POC must share across the RPC / provider boundary:
 
 **Eventual proposal (design note + maintainer ask):** **migrate providers into RPC servers** —
 
-- Shared `rpc.ServeRegistered()` (or `Serve(providers...)`) lives in Mamori.
+- Shared `serve.ServeRegistered()` lives in this POC (uses `mamori.Providers()`).
 - Each provider module gains a first-class server entrypoint (e.g. `providers/aws/cmd/mamori-provider-aws`, or a one-line `main` built in that provider’s CI) — part of that provider’s tree/release, whether Mamori-owned or vendor-owned; not an external generate hack.
 - In-process `Register` + blank-import remains for apps that still want to link providers; out-of-process becomes the path for “deps stay out of my binary / I only need sqlite.”
 - Resolver ships from Mamori; provider binaries ship from Mamori (built-ins) and from vendors (extensions) speaking the same RPC.

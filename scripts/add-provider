@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Add a Mamori provider to providers.manifest.json and regenerate mains.
-# Usage: ./scripts/add-provider <import-path> [-name name] [-new 'New()']...
+# Usage: ./scripts/add-provider <import-path> [-name name]
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 if [[ $# -lt 1 ]]; then
-  echo "usage: $0 <import-path> [addprovider flags...]" >&2
+  echo "usage: $0 <import-path> [-name name]" >&2
   echo "  e.g. $0 github.com/xavidop/mamori/providers/vault" >&2
-  echo "  e.g. $0 github.com/xavidop/mamori/providers/aws -new 'NewSecretsManager()' -new 'NewParameterStore()' -new 'NewAppConfig()'" >&2
   exit 2
 fi
 imp="$1"

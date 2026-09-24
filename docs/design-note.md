@@ -26,10 +26,10 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 | Now (this POC) | Eventual proposal |
 | --- | --- |
-| `go generate` from `providers.manifest.json` → `serve.Serve(prov.New…())` wrappers — **zero edits** to Mamori provider packages | Providers become first-class RPC servers under `providers/*/cmd/…`; Mamori CI releases binaries |
+| Blank-import + `serve.ServeRegistered()` via `go generate` — **zero edits** to provider packages (needs mamori `Providers()` export) | Same packaging owned upstream; Mamori CI releases binaries |
 | Proves wire protocol + dep split | Users download binaries; need not compile provider source |
 
-`mamori.Register`’s lookup is unexported today, so the POC passes provider instances into `Serve` instead of blank-import + `ServeRegistered`. Upstream may export `ProviderFor` or keep explicit `Serve(New())`.
+`mamori.Providers()` is the small upstream-facing API add (snapshot of the Register registry). Without it, blank-import cannot feed `Serve`. This POC’s `replace` uses a local mamori tree that includes the export.
 
 ## Transport
 

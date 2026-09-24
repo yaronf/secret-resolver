@@ -6,14 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	prov "github.com/xavidop/mamori/providers/sqlite"
+	_ "github.com/xavidop/mamori/providers/sqlite"
 	"github.com/yaronf/mamori-resolver/serve"
 )
 
 func main() {
-	if err := serve.ServeWith(serve.Options{
-		Name: "sqlite",
-	}, prov.New()); err != nil {
+	if err := serve.ServeRegistered(serve.Options{Name: "sqlite"}); err != nil {
 		fmt.Fprintf(os.Stderr, "mamori-provider-sqlite: %v\n", err)
 		os.Exit(1)
 	}
