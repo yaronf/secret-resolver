@@ -9,11 +9,14 @@
 - **Optional adoption** — keep in-process blank-import where fine; use out-of-process where SDK weight or selective install matters.
 - **Vendor providers** — third parties can ship a `mamori-provider-*` binary speaking the same RPC without forcing consumers to compile that vendor’s SDK.
 
-### Resolve-only newcomers (MCP, CLIs, one-shot fetch)
+### Resolve-only newcomers (already have config; want secrets)
 
-- Mamori’s **provider ecosystem without** typed-config / watch / reconcile.
+Projects that already own a config subsystem and only need **strong secret management** — Mamori’s providers and URI semantics without adopting typed-config / watch / reconcile.
+
+- Resolve Mamori URIs (`aws-sm://…`, `vault://…`, …) into values; leave the rest of config where it is.
 - Tiny caller dependency: link the resolver, not Mamori core + N SDKs.
-- Install what you use; graduate to full Mamori later with the same refs.
+- Install only the provider binaries you need.
+- Optional later on-ramp to full Mamori Load/Watch with the same refs.
 
 ## Why this belongs in Mamori
 

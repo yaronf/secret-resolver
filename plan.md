@@ -4,7 +4,7 @@
 
 Build a **POC** that can convince the Mamori maintainers of two claims:
 
-1. **A stand-alone resolver is useful** — callers (e.g. MCP secret resolution) can resolve Mamori URIs without linking Mamori’s full typed-config / watch / reconciliation stack or any cloud SDKs into their own binary.
+1. **A stand-alone resolver is useful** — callers that already have a config stack can resolve Mamori secret URIs without linking Mamori’s full typed-config / watch / reconciliation machinery or any cloud SDKs into their own binary.
 2. **Dynamic loading of providers is useful and not too difficult** — at runtime the resolver loads **prebuilt provider binaries** (config → exec → stdio RPC → `Info` schemes), so an install that only needs SQLite never ships or loads AWS, and callers need not **compile** provider source (or its SDKs) into their own module. “Dynamic loading” means **out-of-process provider plugins**, not Go `plugin` `.so` files.
 
 The POC is the argument: working code + a short demo + measurements. It is **not** a production-hardened product.
@@ -18,11 +18,11 @@ The POC is the argument: working code + a short demo + measurements. It is **not
 - **Optional adoption** — keep in-process blank-import where that is fine; use out-of-process only where SDK weight, isolation, or selective install matters.
 - **Vendor / extension providers** — third parties can ship a `mamori-provider-*` binary that speaks the same RPC without forcing every consumer to compile that vendor’s SDK.
 
-**Future / resolve-only customers** (MCP tools, CLIs, one-shot secret fetch, services that do not need Mamori’s watch/reconcile stack):
+**Future / resolve-only customers** (apps that already have config and only want Mamori for secrets):
 
-- **Mamori’s provider ecosystem without the full framework** — `Resolve(uri) → Value` is enough; no struct tags, watcher, or reconciler required.
+- **Strong secret management without a second config framework** — `Resolve(uri) → Value`; leave existing config where it is.
 - **Tiny caller dependency** — link a thin resolver, not Mamori core + N cloud SDKs.
-- **Install what you use** — download/run only `mamori-provider-sqlite` (or Vault, or a vendor binary); never compile or ship the rest.
+- **Install what you use** — download/run only the provider binaries needed; never compile or ship the rest.
 - **Clear on-ramp** — start resolve-only; graduate to full Mamori Load/Watch later with the same refs and providers.
 
 The maintainer pitch (architecture, process model, upstream home) comes **after** this value story.
@@ -337,7 +337,7 @@ Required before calling the POC demo-ready:
 
 ### Phase 8 — Watch as deliberate v2
 
-Mamori’s `WatchableProvider` is channel-based; `net/rpc` is not naturally streaming. The POC is **Resolve only** (fits MCP secret resolution).
+Mamori’s `WatchableProvider` is channel-based; `net/rpc` is not naturally streaming. The POC is **Resolve only** (fits “secrets into an existing config stack”).
 
 Possible later shape (not designed now):
 
@@ -382,7 +382,7 @@ Ship with the POC:
 
 1. **Demo script** — resolve a `sqlite://…` URI from a local DB file; optionally show an AWS URI; show sqlite-only config never starts the AWS process.
 2. **Measurements** — resolver `go mod graph` (no provider SDKs; call out every direct dep), binary sizes, cold start, first/subsequent Resolve latency.
-3. **Design note** — **first: customer value** (existing Mamori users: selective install / smaller builds / same URIs; resolve-only newcomers: provider ecosystem without the full framework). Then: why this belongs **in Mamori**; why an external long-lived project is a bad fit; **POC bridge** (`go generate` wrappers) vs **eventual migration** (providers as RPC servers; Mamori and vendors release prebuilt binaries); sharp edges (stdio framing, errors, credentials).
+3. **Design note** — **first: customer value** (existing Mamori users: selective install / smaller builds / same URIs; resolve-only newcomers: already have config, want Mamori only for secrets). Then: why this belongs **in Mamori**; why an external long-lived project is a bad fit; **POC bridge** (`go generate` wrappers) vs **eventual migration** (providers as RPC servers; Mamori and vendors release prebuilt binaries); sharp edges (stdio framing, errors, credentials).
 
 **POC success = maintainers can evaluate both claims from (1)–(3) and see a credible migration from generate wrappers to providers-as-RPC-servers upstream.** Production readiness and a permanent external repo are out of scope.
 
