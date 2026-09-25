@@ -14,7 +14,7 @@ import (
 
 // Provider is one out-of-process provider plugin. Configure via the API
 // (WithProviders); a file format belongs in Mamori's own config if/when this
-// lands upstream — not a parallel JSON schema here.
+// lands upstream.
 type Provider struct {
 	Command string
 	Args    []string
@@ -25,15 +25,22 @@ type Provider struct {
 type Option func(*options)
 
 type options struct {
-	providers      []Provider
-	stderr         io.Writer
-	maxValueBytes  int
-	maxConnRead    int64
+	providers     []Provider
+	stdout        io.Writer
+	stderr        io.Writer
+	maxValueBytes int
+	maxConnRead   int64
 }
 
 // WithProviders registers provider child processes (required).
 func WithProviders(ps ...Provider) Option {
 	return func(o *options) { o.providers = append(o.providers, ps...) }
+}
+
+// WithStdout sets where provider stdout is forwarded (default os.Stdout).
+// RPC uses ExtraFiles, so stdout stays available for provider logging.
+func WithStdout(w io.Writer) Option {
+	return func(o *options) { o.stdout = w }
 }
 
 // WithStderr sets where provider stderr is forwarded (default os.Stderr).
@@ -46,11 +53,16 @@ func WithMaxValueBytes(n int) Option {
 	return func(o *options) { o.maxValueBytes = n }
 }
 
-// Resolver routes URIs to out-of-process provider plugins.
+// Resolver routes refs to out-of-process provider plugins.
+//
+// The mutex guards byScheme/procs so Close is safe against concurrent Resolve.
+// That same shape is a starting point for later dynamic provider load/unload;
+// today the set is fixed at New.
 type Resolver struct {
 	mu            sync.RWMutex
 	byScheme      map[string]*providerProc
 	procs         []*providerProc
+	stdout        io.Writer
 	stderr        io.Writer
 	maxValueBytes int
 }
@@ -66,6 +78,7 @@ type providerProc struct {
 // New starts configured provider processes and discovers their schemes.
 func New(opts ...Option) (*Resolver, error) {
 	o := options{
+		stdout:        os.Stdout,
 		stderr:        os.Stderr,
 		maxValueBytes: rpc.DefaultMaxValueBytes,
 		maxConnRead:   rpc.DefaultMaxConnRead,
@@ -82,6 +95,7 @@ func New(opts ...Option) (*Resolver, error) {
 
 	r := &Resolver{
 		byScheme:      make(map[string]*providerProc),
+		stdout:        o.stdout,
 		stderr:        o.stderr,
 		maxValueBytes: o.maxValueBytes,
 	}
@@ -122,7 +136,8 @@ func (r *Resolver) startProvider(pcfg Provider, maxConnRead int64) (*providerPro
 
 	cmd := exec.Command(pcfg.Command, pcfg.Args...)
 	cmd.Env = env
-	// Leave stdout inherited so providers can log normally; forward stderr.
+	// RPC is on ExtraFiles; stdout/stderr are for provider logging / diagnostics.
+	cmd.Stdout = r.stdout
 	cmd.Stderr = r.stderr
 	cmd.ExtraFiles = []*os.File{child}
 
@@ -167,21 +182,21 @@ func (r *Resolver) startProvider(pcfg Provider, maxConnRead int64) (*providerPro
 	}, nil
 }
 
-// Resolve fetches uri via the provider that owns its scheme.
-func (r *Resolver) Resolve(ctx context.Context, uri string) (Value, error) {
-	ref, err := ParseRef(uri)
+// Resolve fetches ref via the provider that owns its scheme.
+func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
+	parsed, err := ParseRef(ref)
 	if err != nil {
 		return Value{}, err
 	}
 	r.mu.RLock()
-	p := r.byScheme[ref.Scheme]
+	p := r.byScheme[parsed.Scheme]
 	maxBytes := r.maxValueBytes
 	r.mu.RUnlock()
 	if p == nil {
-		return Value{}, &Error{Kind: KindInvalid, Message: fmt.Sprintf("no provider for scheme %q", ref.Scheme)}
+		return Value{}, &Error{Kind: KindInvalid, Message: fmt.Sprintf("no provider for scheme %q", parsed.Scheme)}
 	}
 
-	res, err := p.client.Resolve(ctx, uri)
+	res, err := p.client.Resolve(ctx, ref)
 	if err != nil {
 		if errors.Is(err, rpc.ErrTooLarge) {
 			return Value{}, &Error{Kind: KindProtocol, Message: "provider RPC exceeded read budget"}
@@ -194,7 +209,7 @@ func (r *Resolver) Resolve(ctx context.Context, uri string) (Value, error) {
 	if res.Err != nil {
 		return Value{}, &Error{
 			Kind:    NormalizeKind(res.Err.Kind),
-			Message: sanitizeErrorMessage(res.Err.Message),
+			Message: truncateMessage(res.Err.Message),
 		}
 	}
 	if !res.OK {
@@ -250,21 +265,12 @@ func (r *Resolver) Schemes() []string {
 	return out
 }
 
-// sanitizeErrorMessage keeps provider error text out of secret-shaped dumps:
-// truncate and strip controls. Providers must still not put secret bytes in Error().
-func sanitizeErrorMessage(msg string) string {
+// truncateMessage bounds provider error text. Providers must still not put
+// secret bytes in Error(); this only limits how much we retain.
+func truncateMessage(msg string) string {
 	const max = 512
-	b := make([]byte, 0, min(len(msg), max+1))
-	for i := 0; i < len(msg) && len(b) < max; i++ {
-		c := msg[i]
-		if c < 0x20 && c != '\t' || c == 0x7f {
-			b = append(b, '?')
-			continue
-		}
-		b = append(b, c)
+	if len(msg) <= max {
+		return msg
 	}
-	if len(msg) > max {
-		return string(b) + "…"
-	}
-	return string(b)
+	return msg[:max] + "…"
 }

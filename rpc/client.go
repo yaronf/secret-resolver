@@ -28,8 +28,8 @@ func (c *Client) Info(ctx context.Context) (*InfoResponse, error) {
 	return &reply, nil
 }
 
-func (c *Client) Resolve(ctx context.Context, uri string) (*ResolveResult, error) {
-	req := &ResolveRequest{URI: uri}
+func (c *Client) Resolve(ctx context.Context, ref string) (*ResolveResult, error) {
+	req := &ResolveRequest{Ref: ref}
 	if dl, ok := ctx.Deadline(); ok {
 		t := dl
 		req.Deadline = &t

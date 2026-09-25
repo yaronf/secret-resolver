@@ -21,9 +21,13 @@ func main() {
 	)
 	flag.Var(&providers, "provider", "provider command (repeatable)")
 	flag.Var(&envs, "env", "KEY=VALUE for provider processes (repeatable)")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -provider CMD [flags] <ref>\n", os.Args[0])
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	if len(providers) == 0 || flag.NArg() < 1 {
-		fmt.Fprintf(os.Stderr, "usage: secret-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] [-show-secrets] <uri>\n")
+		flag.Usage()
 		os.Exit(2)
 	}
 
@@ -83,7 +87,21 @@ func formatResolveJSON(v secretresolver.Value, showSecrets bool) resolveJSON {
 	}
 	out.Redacted = true
 	out.ByteLen = len(v.Bytes)
+	out.Bytes = redactStars(len(v.Bytes))
 	return out
+}
+
+// redactStars is a visual stand-in for secret bytes (length capped so huge
+// values don't flood the terminal). True size is in byte_len.
+func redactStars(n int) string {
+	const maxStars = 12
+	if n <= 0 {
+		return ""
+	}
+	if n > maxStars {
+		n = maxStars
+	}
+	return strings.Repeat("*", n)
 }
 
 type stringList []string

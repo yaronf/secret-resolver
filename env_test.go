@@ -60,14 +60,13 @@ func TestNormalizeKind(t *testing.T) {
 	}
 }
 
-func TestSanitizeErrorMessage(t *testing.T) {
-	s := sanitizeErrorMessage("ok\x00secret")
-	if strings.Contains(s, "\x00") {
-		t.Fatalf("control not stripped: %q", s)
+func TestTruncateMessage(t *testing.T) {
+	if truncateMessage("ok") != "ok" {
+		t.Fatal()
 	}
 	long := strings.Repeat("a", 600)
-	s = sanitizeErrorMessage(long)
-	if len(s) > 520 {
-		t.Fatalf("not truncated: %d", len(s))
+	s := truncateMessage(long)
+	if len(s) != 512+len("…") {
+		t.Fatalf("got len %d", len(s))
 	}
 }

@@ -177,7 +177,7 @@ func New(opts ...Option) (*Resolver, error)
 
 func (r *Resolver) Resolve(
     ctx context.Context,
-    uri string,
+    ref string,
 ) (Value, error)
 
 func (r *Resolver) Close() error
@@ -206,7 +206,7 @@ type InfoResponse struct {
 }
 
 type ResolveRequest struct {
-    URI      string
+    Ref      string
     Deadline *time.Time  // optional; child bounds SDK calls when set
 }
 

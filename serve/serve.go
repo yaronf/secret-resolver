@@ -26,8 +26,9 @@ func Serve(providers ...mamori.Provider) error {
 	return ServeWith(Options{}, providers...)
 }
 
-// ServeRegistered serves every provider currently in mamori's registry (typically
-// populated by blank-importing provider packages whose init calls Register).
+// ServeRegistered serves whatever is in this process's mamori registry.
+// In the out-of-process model that is normally a single blank-imported
+// provider package (its init called Register) — not the full Mamori catalog.
 // Requires mamori.Providers() (exported registry snapshot).
 func ServeRegistered(opts ...Options) error {
 	var o Options
@@ -124,11 +125,11 @@ func (s *service) Info(_ *mrpc.InfoRequest, reply *mrpc.InfoResponse) error {
 
 func (s *service) Resolve(args *mrpc.ResolveRequest, reply *mrpc.ResolveResult) error {
 	*reply = mrpc.ResolveResult{}
-	if args == nil || args.URI == "" {
-		reply.Err = &mrpc.RPCError{Kind: string(mamori.KindInvalid), Message: "empty URI"}
+	if args == nil || args.Ref == "" {
+		reply.Err = &mrpc.RPCError{Kind: string(mamori.KindInvalid), Message: "empty ref"}
 		return nil
 	}
-	ref, err := mamori.ParseRef(args.URI)
+	ref, err := mamori.ParseRef(args.Ref)
 	if err != nil {
 		reply.Err = &mrpc.RPCError{Kind: string(mamori.KindInvalid), Message: err.Error()}
 		return nil
@@ -152,8 +153,9 @@ func (s *service) Resolve(args *mrpc.ResolveRequest, reply *mrpc.ResolveResult) 
 		return nil
 	}
 	if len(val.Bytes) > mrpc.DefaultMaxValueBytes {
+		// Not a mamori Kind; host NormalizeKind keeps "protocol".
 		reply.Err = &mrpc.RPCError{
-			Kind:    string(mamori.KindUnknown),
+			Kind:    "protocol",
 			Message: fmt.Sprintf("value exceeds max size (%d bytes)", mrpc.DefaultMaxValueBytes),
 		}
 		return nil
@@ -176,18 +178,8 @@ func mapErr(err error) *mrpc.RPCError {
 	}
 	msg := err.Error()
 	const max = 512
-	out := make([]byte, 0, min(len(msg), max+1))
-	for i := 0; i < len(msg) && len(out) < max; i++ {
-		c := msg[i]
-		if c < 0x20 && c != '\t' || c == 0x7f {
-			out = append(out, '?')
-			continue
-		}
-		out = append(out, c)
-	}
-	s := string(out)
 	if len(msg) > max {
-		s += "…"
+		msg = msg[:max] + "…"
 	}
-	return &mrpc.RPCError{Kind: string(kind), Message: s}
+	return &mrpc.RPCError{Kind: string(kind), Message: msg}
 }

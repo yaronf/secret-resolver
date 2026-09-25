@@ -19,7 +19,7 @@ type InfoResponse struct {
 }
 
 type ResolveRequest struct {
-	URI      string
+	Ref      string // mamori source ref (not a standards-track URI)
 	Deadline *time.Time
 }
 

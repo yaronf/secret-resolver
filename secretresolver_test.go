@@ -144,6 +144,59 @@ func TestResolveRejectsHugeValue(t *testing.T) {
 	}
 }
 
+func TestMultipleProvidersRoutesByScheme(t *testing.T) {
+	fake := buildFake(t)
+	a, _ := json.Marshal(map[string]string{"alpha://one": "from-a"})
+	b, _ := json.Marshal(map[string]string{"beta://two": "from-b"})
+
+	r, err := secretresolver.New(secretresolver.WithProviders(
+		secretresolver.Provider{Command: fake, Env: map[string]string{"FAKE_VALUES": string(a)}},
+		secretresolver.Provider{Command: fake, Env: map[string]string{"FAKE_VALUES": string(b)}},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	schemes := map[string]bool{}
+	for _, s := range r.Schemes() {
+		schemes[s] = true
+	}
+	if !schemes["alpha"] || !schemes["beta"] {
+		t.Fatalf("schemes = %v", r.Schemes())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	v, err := r.Resolve(ctx, "alpha://one")
+	if err != nil || string(v.Bytes) != "from-a" {
+		t.Fatalf("alpha: %v %q", err, v.Bytes)
+	}
+	v, err = r.Resolve(ctx, "beta://two")
+	if err != nil || string(v.Bytes) != "from-b" {
+		t.Fatalf("beta: %v %q", err, v.Bytes)
+	}
+}
+
+func TestDuplicateSchemeRejected(t *testing.T) {
+	fake := buildFake(t)
+	a, _ := json.Marshal(map[string]string{"fake://a": "1"})
+	b, _ := json.Marshal(map[string]string{"fake://b": "2"})
+
+	r, err := secretresolver.New(secretresolver.WithProviders(
+		secretresolver.Provider{Command: fake, Env: map[string]string{"FAKE_VALUES": string(a)}},
+		secretresolver.Provider{Command: fake, Env: map[string]string{"FAKE_VALUES": string(b)}},
+	))
+	if err == nil {
+		r.Close()
+		t.Fatal("expected duplicate scheme error")
+	}
+	if !errors.Is(err, secretresolver.ErrInvalid) {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func buildFake(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

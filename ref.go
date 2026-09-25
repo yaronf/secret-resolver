@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-// Ref is a parsed mamori-style source URI (scheme://path[#key][?opts]).
+// Ref is a parsed mamori source ref (scheme://path[#key][?opts]).
+// It is not an RFC 3986 URI: opaque schemes (env:, exec:), fragment-as-key,
+// and provider paths do not follow URL authority rules.
 // Grammar matches github.com/xavidop/mamori.ParseRef (query before fragment
 // strip) so host routing stays aligned with provider-side parsing without
 // importing Mamori into this module.
