@@ -8,7 +8,7 @@ import (
 
 // EnvRPCFD is the child environment variable naming the inherited RPC file
 // descriptor (first ExtraFiles entry → fd 3 by default).
-const EnvRPCFD = "MAMORI_RPC_FD"
+const EnvRPCFD = "SECRET_RESOLVER_RPC_FD"
 
 // DefaultRPCFD is the fd number for cmd.ExtraFiles[0] (stdin=0, stdout=1, stderr=2).
 const DefaultRPCFD = 3
@@ -24,7 +24,7 @@ func OpenInherited() (*os.File, error) {
 		}
 		fd = n
 	}
-	f := os.NewFile(uintptr(fd), "mamori-rpc")
+	f := os.NewFile(uintptr(fd), "secret-resolver-rpc")
 	if f == nil {
 		return nil, fmt.Errorf("rpc: NewFile(%d) failed", fd)
 	}

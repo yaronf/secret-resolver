@@ -1,4 +1,4 @@
-# mamori-resolver
+# secret-resolver
 
 POC: resolve Mamori URIs via a thin host that loads **out-of-process provider plugins** over a dedicated RPC fd — no cloud/provider SDKs in the resolver module.
 
@@ -21,19 +21,19 @@ git clone -b export-providers https://github.com/yaronf/mamori.git ../mamori.git
 go generate .
 
 mkdir -p bin
-go build -o bin/mamori-resolver ./cmd/mamori-resolver
+go build -o bin/secret-resolver ./cmd/secret-resolver
 
 (cd cmd/mamori-provider-sqlite && go mod tidy && go build -o ../../bin/mamori-provider-sqlite .)
 
 (cd examples/seed-sqlite && go mod tidy && go run . -db /tmp/mamori-demo.db)
 
-./bin/mamori-resolver \
+./bin/secret-resolver \
   -provider ./bin/mamori-provider-sqlite \
   -env SQLITE_PATH=/tmp/mamori-demo.db \
   'sqlite://config/greeting'
 ```
 
-Library usage: `resolver.New(resolver.WithProviders(...))`. If this lands in Mamori, provider lists belong in **Mamori’s YAML**, not a parallel schema here.
+Library usage: `secretresolver.New(secretresolver.WithProviders(...))`. If this lands in Mamori, provider lists belong in **Mamori’s YAML**, not a parallel schema here.
 
 Root `go.mod` stays free of Mamori and provider SDKs.
 
@@ -56,7 +56,7 @@ Fake provider is hand-written (not a Mamori package).
 | --- | --- |
 | `.` (this module) | `Resolver`, RPC client — minimal deps |
 | `serve/` | Provider-side `ServeRegistered` shim (depends on Mamori) |
-| `cmd/mamori-resolver` | CLI over the API |
+| `cmd/secret-resolver` | CLI over the API |
 | `providers.manifest.json` | which provider packages to wrap |
 | `scripts/add-provider` | append a **new** package to the manifest + generate |
 | `go generate .` | regenerate mains from the current manifest |

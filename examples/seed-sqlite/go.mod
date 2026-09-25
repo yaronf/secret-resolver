@@ -1,4 +1,4 @@
-module github.com/yaronf/mamori-resolver/examples/seed-sqlite
+module github.com/yaronf/secret-resolver/examples/seed-sqlite
 
 go 1.26.7
 

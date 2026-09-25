@@ -76,18 +76,18 @@ func main() {
 
 func goModTemplate(p provider) string {
 	provPath := strings.TrimPrefix(p.Import, "github.com/xavidop/mamori/")
-	return fmt.Sprintf(`module github.com/yaronf/mamori-resolver/cmd/mamori-provider-%s
+	return fmt.Sprintf(`module github.com/yaronf/secret-resolver/cmd/mamori-provider-%s
 
 go 1.26.7
 
 require (
 	%s v0.0.0
-	github.com/yaronf/mamori-resolver/serve v0.0.0
+	github.com/yaronf/secret-resolver/serve v0.0.0
 )
 
-replace github.com/yaronf/mamori-resolver => ../../
+replace github.com/yaronf/secret-resolver => ../../
 
-replace github.com/yaronf/mamori-resolver/serve => ../../serve
+replace github.com/yaronf/secret-resolver/serve => ../../serve
 
 replace github.com/xavidop/mamori => ../../../mamori.git
 
@@ -126,7 +126,7 @@ import (
 	"os"
 
 	_ "{{.Import}}"
-	"github.com/yaronf/mamori-resolver/serve"
+	"github.com/yaronf/secret-resolver/serve"
 )
 
 func main() {

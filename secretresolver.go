@@ -1,4 +1,4 @@
-package resolver
+package secretresolver
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/yaronf/mamori-resolver/rpc"
+	"github.com/yaronf/secret-resolver/rpc"
 )
 
 // Provider is one out-of-process provider plugin. Configure via the API

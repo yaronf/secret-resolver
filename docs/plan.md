@@ -1,4 +1,4 @@
-# mamori-resolver
+# secret-resolver
 
 ## Goal
 
@@ -37,11 +37,11 @@ The maintainer pitch (architecture, process model, upstream home) comes **after*
 
 ### Why this cannot be a long-lived stand-alone project
 
-The resolver depends **100% on Mamori**, and especially on **the provider packages** (APIs, schemes, error semantics, SDKs, release cadence). A forever-external `mamori-resolver` would be a tracking tax: every Mamori provider change, new scheme, or SPI tweak becomes our breakage. The only durable home is **upstream Mamori** (or an officially maintained Mamori subproject).
+The resolver depends **100% on Mamori**, and especially on **the provider packages** (APIs, schemes, error semantics, SDKs, release cadence). A forever-external `secret-resolver` would be a tracking tax: every Mamori provider change, new scheme, or SPI tweak becomes our breakage. The only durable home is **upstream Mamori** (or an officially maintained Mamori subproject).
 
-So the POC’s job is persuasion toward upstream adoption — not founding an independent product. Spike code lives in this repo (`mamori-resolver/`, sibling of `mamori.git`); private remote for collaboration/backup. Long-term maintenance outside Mamori remains a non-starter — the design note must say so.
+So the POC’s job is persuasion toward upstream adoption — not founding an independent product. Spike code lives in this repo (`secret-resolver/`, sibling of `mamori.git`); private remote for collaboration/backup. Long-term maintenance outside Mamori remains a non-starter — the design note must say so.
 
-**Spike layout:** this repository — private GitHub remote (`yaronf/mamori-resolver`) for now; durable home is still upstream Mamori if maintainers adopt it. Reuse the existing `providers/*` modules and `Register` SPI via `replace` / local paths as needed.
+**Spike layout:** this repository — private GitHub remote (`yaronf/secret-resolver`) for now; durable home is still upstream Mamori if maintainers adopt it. Reuse the existing `providers/*` modules and `Register` SPI via `replace` / local paths as needed.
 
 ## Target
 
@@ -49,10 +49,10 @@ So the POC’s job is persuasion toward upstream adoption — not founding an in
 URI → select provider process → stdio RPC → existing Mamori provider → Value
 ```
 
-`mamori-resolver` has **no** AWS/GCP/Azure/Vault/SQLite/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec). Provider SDKs live only in separately built `mamori-provider-*` executables.
+`secret-resolver` has **no** AWS/GCP/Azure/Vault/SQLite/etc. SDK dependencies, and otherwise the **minimum possible** dependency graph (stdlib-first: `net/rpc`, framing, process exec). Provider SDKs live only in separately built `mamori-provider-*` executables.
 
 ```
-                    mamori-resolver
+                    secret-resolver
                           │
               ┌───────────┴───────────┐
               │ scheme → process map  │
@@ -103,7 +103,7 @@ Artifacts to hand over: runnable POC, README demo script, dependency-graph / bin
 
 ## Deliverables (POC-scoped)
 
-1. **`mamori-resolver`** — process manager + framed `net/rpc` + discovery + public `Resolve` / `WithProviders` API (spike module; intended upstream shape).
+1. **`secret-resolver`** — process manager + framed `net/rpc` + discovery + public `Resolve` / `WithProviders` API (spike module; intended upstream shape).
 2. **Provider binaries (POC bridge)** — `go generate` → `mamori-provider-sqlite` (required demo) and optionally `mamori-provider-aws` via blank-import + `ServeRegistered()`; **zero edits** to existing provider packages.
 3. **Minimal wire/SPI types in the resolver** — enough for the RPC boundary. Provider children keep importing full `github.com/xavidop/mamori` as today.
 4. **Design note** — includes the **migration proposal**: move from generate wrappers to providers shipping as RPC servers upstream.
@@ -150,11 +150,11 @@ POC generate wrappers demonstrate the wire protocol and dep split; migration mak
 
 ---
 
-### Phase 2 — Define `mamori-resolver`
+### Phase 2 — Define `secret-resolver`
 
 ```
-mamori-resolver/
-    resolver.go
+secret-resolver/
+    secretresolver.go
     registry.go
     process.go
     rpc/
@@ -163,7 +163,7 @@ mamori-resolver/
         client.go
         server.go
     cmd/
-        mamori-resolver/
+        secret-resolver/
     internal/
         ...
 ```
@@ -191,7 +191,7 @@ Do **not** pull Mamori’s typed-config / watch / reconciliation machinery into 
 
 ### Phase 3 — Tiny RPC protocol
 
-Stdlib `net/rpc` + gob on a **dedicated socketpair** fd (`ExtraFiles` / `MAMORI_RPC_FD=3`). Stdout stays free for logging. Portable alternatives for Windows (loopback + env handshake token; UDS + named pipe) — see design-note Transport; keep socketpair for this POC.
+Stdlib `net/rpc` + gob on a **dedicated socketpair** fd (`ExtraFiles` / `SECRET_RESOLVER_RPC_FD=3`). Stdout stays free for logging. Portable alternatives for Windows (loopback + env handshake token; UDS + named pipe) — see design-note Transport; keep socketpair for this POC.
 
 Protocol version applies to request/response shapes (`ProtocolVersion = 1` from day one). `ProviderVersion` is the provider binary/module version (distinct from `Value.Version`, which is a secret revision).
 
@@ -272,7 +272,7 @@ package main
 
 import (
     _ "github.com/xavidop/mamori/providers/aws"
-    "github.com/.../mamori-resolver/rpc"
+    "github.com/.../secret-resolver/rpc"
 )
 
 func main() {
@@ -289,7 +289,7 @@ Manifest is package-level (one AWS package → three schemes: `aws-sm`, `aws-ps`
 Resulting dependency split (POC and end state):
 
 ```
-mamori-resolver            ~minimal deps (no provider SDKs; stdlib-first)
+secret-resolver            ~minimal deps (no provider SDKs; stdlib-first)
 
 mamori-provider-sqlite     └ modernc.org/sqlite (etc.); scheme: sqlite
 mamori-provider-aws        └ AWS SDK; schemes: aws-sm, aws-ps, aws-appconfig
@@ -298,7 +298,7 @@ mamori-provider-aws        └ AWS SDK; schemes: aws-sm, aws-ps, aws-appconfig
 
 ### Phase 6 — Configuration and discovery
 
-**POC:** configure only via API — `resolver.WithProviders(resolver.Provider{Command, Args, Env}...)`. The demo CLI maps flags (`-provider`, `-env`) onto that API. **No** separate resolver JSON/YAML schema.
+**POC:** configure only via API — `secretresolver.WithProviders(secretresolver.Provider{Command, Args, Env}...)`. The demo CLI maps flags (`-provider`, `-env`) onto that API. **No** separate resolver JSON/YAML schema.
 
 **Upstream:** if Mamori grows a file format for out-of-process providers, it belongs in **Mamori’s existing YAML config**, not a parallel format in this module.
 
@@ -371,7 +371,7 @@ Reuse Mamori conformance *philosophy* (semantics), not necessarily by linking he
 Build:
 
 ```
-mamori-resolver
+secret-resolver
 mamori-provider-sqlite
 mamori-provider-aws      # optional for heavy-SDK demo
 ```

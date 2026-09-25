@@ -1,4 +1,4 @@
-// Package serve runs Mamori providers as RPC servers for mamori-resolver.
+// Package serve runs Mamori providers as RPC servers for secret-resolver.
 package serve
 
 import (
@@ -9,14 +9,14 @@ import (
 	"runtime/debug"
 
 	"github.com/xavidop/mamori"
-	mrpc "github.com/yaronf/mamori-resolver/rpc"
+	mrpc "github.com/yaronf/secret-resolver/rpc"
 )
 
 // Options configure Serve.
 type Options struct {
 	Name    string // Info.ProviderName
 	Version string // Info.ProviderVersion; default: build info
-	// Conn is the RPC duplex. If nil, the inherited fd from MAMORI_RPC_FD
+	// Conn is the RPC duplex. If nil, the inherited fd from SECRET_RESOLVER_RPC_FD
 	// (default 3 / ExtraFiles[0]) is used — stdout stays free for logging.
 	Conn io.ReadWriteCloser
 }

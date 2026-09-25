@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	resolver "github.com/yaronf/mamori-resolver"
+	secretresolver "github.com/yaronf/secret-resolver"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	flag.Var(&envs, "env", "KEY=VALUE for provider processes (repeatable)")
 	flag.Parse()
 	if len(providers) == 0 || flag.NArg() < 1 {
-		fmt.Fprintf(os.Stderr, "usage: mamori-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] <uri>\n")
+		fmt.Fprintf(os.Stderr, "usage: secret-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] <uri>\n")
 		os.Exit(2)
 	}
 
@@ -30,20 +30,20 @@ func main() {
 	for _, e := range envs {
 		k, v, ok := strings.Cut(e, "=")
 		if !ok || k == "" {
-			fmt.Fprintf(os.Stderr, "resolver: bad -env %q (want KEY=VALUE)\n", e)
+			fmt.Fprintf(os.Stderr, "secret-resolver: bad -env %q (want KEY=VALUE)\n", e)
 			os.Exit(2)
 		}
 		envMap[k] = v
 	}
 
-	ps := make([]resolver.Provider, 0, len(providers))
+	ps := make([]secretresolver.Provider, 0, len(providers))
 	for _, cmd := range providers {
-		ps = append(ps, resolver.Provider{Command: cmd, Env: envMap})
+		ps = append(ps, secretresolver.Provider{Command: cmd, Env: envMap})
 	}
 
-	r, err := resolver.New(resolver.WithProviders(ps...))
+	r, err := secretresolver.New(secretresolver.WithProviders(ps...))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "resolver: %v\n", err)
+		fmt.Fprintf(os.Stderr, "secret-resolver: %v\n", err)
 		os.Exit(1)
 	}
 	defer r.Close()

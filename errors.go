@@ -1,4 +1,4 @@
-package resolver
+package secretresolver
 
 import (
 	"errors"
@@ -21,12 +21,12 @@ const (
 )
 
 var (
-	ErrNotFound         = errors.New("mamori-resolver: not found")
-	ErrPermissionDenied = errors.New("mamori-resolver: permission denied")
-	ErrUnauthenticated  = errors.New("mamori-resolver: unauthenticated")
-	ErrUnavailable      = errors.New("mamori-resolver: unavailable")
-	ErrRateLimited      = errors.New("mamori-resolver: rate limited")
-	ErrInvalid          = errors.New("mamori-resolver: invalid")
+	ErrNotFound         = errors.New("secret-resolver: not found")
+	ErrPermissionDenied = errors.New("secret-resolver: permission denied")
+	ErrUnauthenticated  = errors.New("secret-resolver: unauthenticated")
+	ErrUnavailable      = errors.New("secret-resolver: unavailable")
+	ErrRateLimited      = errors.New("secret-resolver: rate limited")
+	ErrInvalid          = errors.New("secret-resolver: invalid")
 )
 
 // Error is a classified resolve failure. Message must never contain secret bytes.

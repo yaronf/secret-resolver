@@ -1,6 +1,6 @@
 // Command mamori-provider-fake is an in-memory provider for resolver tests.
 // Env FAKE_VALUES is JSON object map[string]string of full URI -> value.
-// RPC runs on the inherited MAMORI_RPC_FD (ExtraFiles); stdout stays free.
+// RPC runs on the inherited SECRET_RESOLVER_RPC_FD (ExtraFiles); stdout stays free.
 package main
 
 import (
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	mrpc "github.com/yaronf/mamori-resolver/rpc"
+	mrpc "github.com/yaronf/secret-resolver/rpc"
 )
 
 func main() {

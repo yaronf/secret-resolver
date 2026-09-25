@@ -1,10 +1,10 @@
-module github.com/yaronf/mamori-resolver/cmd/mamori-provider-aws
+module github.com/yaronf/secret-resolver/cmd/mamori-provider-aws
 
 go 1.26.7
 
 require (
 	github.com/xavidop/mamori/providers/aws v0.0.0
-	github.com/yaronf/mamori-resolver/serve v0.0.0
+	github.com/yaronf/secret-resolver/serve v0.0.0
 )
 
 require (
@@ -34,16 +34,16 @@ require (
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/xavidop/mamori v0.1.0 // indirect
-	github.com/yaronf/mamori-resolver v0.0.0 // indirect
+	github.com/yaronf/secret-resolver v0.0.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/yaronf/mamori-resolver => ../../
+replace github.com/yaronf/secret-resolver => ../../
 
-replace github.com/yaronf/mamori-resolver/serve => ../../serve
+replace github.com/yaronf/secret-resolver/serve => ../../serve
 
 replace github.com/xavidop/mamori => ../../../mamori.git
 

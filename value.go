@@ -1,4 +1,4 @@
-package resolver
+package secretresolver
 
 import "time"
 

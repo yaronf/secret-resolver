@@ -1,11 +1,11 @@
-module github.com/yaronf/mamori-resolver/cmd/mamori-provider-sqlite
+module github.com/yaronf/secret-resolver/cmd/mamori-provider-sqlite
 
 go 1.26.7
 
 require (
 	github.com/xavidop/mamori/providers/sqlite v0.0.0
-	github.com/yaronf/mamori-resolver v0.0.0
-	github.com/yaronf/mamori-resolver/serve v0.0.0
+	github.com/yaronf/secret-resolver v0.0.0
+	github.com/yaronf/secret-resolver/serve v0.0.0
 	modernc.org/sqlite v1.58.0
 )
 
@@ -33,9 +33,9 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-replace github.com/yaronf/mamori-resolver => ../../
+replace github.com/yaronf/secret-resolver => ../../
 
-replace github.com/yaronf/mamori-resolver/serve => ../../serve
+replace github.com/yaronf/secret-resolver/serve => ../../serve
 
 replace github.com/xavidop/mamori => ../../../mamori.git
 

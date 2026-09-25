@@ -7,7 +7,7 @@ import (
 	"os"
 
 	_ "github.com/xavidop/mamori/providers/aws"
-	"github.com/yaronf/mamori-resolver/serve"
+	"github.com/yaronf/secret-resolver/serve"
 )
 
 func main() {

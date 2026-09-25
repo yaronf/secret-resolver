@@ -1,4 +1,4 @@
-package resolver_test
+package secretresolver_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	resolver "github.com/yaronf/mamori-resolver"
+	secretresolver "github.com/yaronf/secret-resolver"
 )
 
 func TestResolveViaFakeProvider(t *testing.T) {
@@ -22,7 +22,7 @@ func TestResolveViaFakeProvider(t *testing.T) {
 		"fake://bin":   "a\x00b",
 	})
 
-	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
+	r, err := secretresolver.New(secretresolver.WithProviders(secretresolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": string(values)},
 	}))
@@ -51,7 +51,7 @@ func TestResolveViaFakeProvider(t *testing.T) {
 	}
 
 	_, err = r.Resolve(ctx, "fake://missing")
-	if !errors.Is(err, resolver.ErrNotFound) {
+	if !errors.Is(err, secretresolver.ErrNotFound) {
 		t.Fatalf("missing: %v", err)
 	}
 }
@@ -64,7 +64,7 @@ func TestConcurrentResolve(t *testing.T) {
 	}
 	b, _ := json.Marshal(m)
 
-	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
+	r, err := secretresolver.New(secretresolver.WithProviders(secretresolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": string(b)},
 	}))
@@ -100,7 +100,7 @@ func TestConcurrentResolve(t *testing.T) {
 
 func TestUnknownScheme(t *testing.T) {
 	fake := buildFake(t)
-	r, err := resolver.New(resolver.WithProviders(resolver.Provider{
+	r, err := secretresolver.New(secretresolver.WithProviders(secretresolver.Provider{
 		Command: fake,
 		Env:     map[string]string{"FAKE_VALUES": `{"fake://x":"y"}`},
 	}))
@@ -110,8 +110,8 @@ func TestUnknownScheme(t *testing.T) {
 	defer r.Close()
 
 	_, err = r.Resolve(context.Background(), "other://x")
-	var re *resolver.Error
-	if !errors.As(err, &re) || re.Kind != resolver.KindInvalid {
+	var re *secretresolver.Error
+	if !errors.As(err, &re) || re.Kind != secretresolver.KindInvalid {
 		t.Fatalf("got %v", err)
 	}
 }

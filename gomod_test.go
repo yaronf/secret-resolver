@@ -1,4 +1,4 @@
-package resolver_test
+package secretresolver_test
 
 import (
 	"os"

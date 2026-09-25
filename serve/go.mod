@@ -1,10 +1,10 @@
-module github.com/yaronf/mamori-resolver/serve
+module github.com/yaronf/secret-resolver/serve
 
 go 1.26.7
 
 require (
 	github.com/xavidop/mamori v0.1.0
-	github.com/yaronf/mamori-resolver v0.0.0
+	github.com/yaronf/secret-resolver v0.0.0
 )
 
 require (
@@ -24,6 +24,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/yaronf/mamori-resolver => ../
+replace github.com/yaronf/secret-resolver => ../
 
 replace github.com/xavidop/mamori => ../../mamori.git
