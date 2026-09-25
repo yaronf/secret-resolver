@@ -142,6 +142,9 @@ func TestResolveRejectsHugeValue(t *testing.T) {
 	if !errors.As(err, &re) || re.Kind != secretresolver.KindProtocol {
 		t.Fatalf("got %v", err)
 	}
+	if !errors.Is(err, secretresolver.ErrTooLarge) {
+		t.Fatalf("expected ErrTooLarge: %v", err)
+	}
 }
 
 func TestMultipleProvidersRoutesByScheme(t *testing.T) {
@@ -193,6 +196,24 @@ func TestDuplicateSchemeRejected(t *testing.T) {
 		t.Fatal("expected duplicate scheme error")
 	}
 	if !errors.Is(err, secretresolver.ErrInvalid) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestResolveAfterClose(t *testing.T) {
+	fake := buildFake(t)
+	r, err := secretresolver.New(secretresolver.WithProviders(secretresolver.Provider{
+		Command: fake,
+		Env:     map[string]string{"FAKE_VALUES": `{"fake://x":"y"}`},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.Resolve(context.Background(), "fake://x")
+	if !errors.Is(err, secretresolver.ErrClosed) {
 		t.Fatalf("got %v", err)
 	}
 }

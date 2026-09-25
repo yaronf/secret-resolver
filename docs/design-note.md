@@ -51,8 +51,9 @@ Socketpair stays the POC default: fewest deps, no filesystem name, no token. Por
 
 - **Unix-only** host↔child transport (`socketpair` + `ExtraFiles`); Windows alternatives documented above, not coded.
 - Providers are **not** a security sandbox (dep isolation only).
-- Context cancel stops waiting locally; optional `Deadline` on the request bounds the child (in-flight backend fetches may continue until deadline).
-- Child env is allowlisted + explicit `Provider.Env` (no full host environ); cloud default file chains still need `HOME` / paths via allowlist or Env.
+- Context cancel stops waiting on the host only; the child RPC may continue. When the caller’s `ctx` has a deadline it is sent as `Deadline` so the provider can bound SDK calls — there is no remote cancel RPC in the POC.
+- `Close` rejects new Resolves, waits for in-flight ones, then kills children.
+- Child env is allowlisted + explicit `Provider.Env` (Provider.Env overrides allowlisted keys; `MAMORI_RPC_FD` is forced last). Cloud file-based ADC still needs `HOME` on the allowlist or an explicit Env path.
 - Resolve value size and per-connection gob read budgets are capped.
 - Resolve-only; Watch is a later design.
 

@@ -16,6 +16,7 @@ func TestBuildChildEnvAllowlistAndRPCFDLast(t *testing.T) {
 
 	env, err := buildChildEnv(map[string]string{
 		"SQLITE_PATH": "/tmp/db",
+		"PATH":        "/custom/bin", // overrides allowlisted PATH
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -28,17 +29,28 @@ func TestBuildChildEnvAllowlistAndRPCFDLast(t *testing.T) {
 	if !strings.Contains(joined, "SQLITE_PATH=/tmp/db") {
 		t.Fatalf("missing explicit env:\n%s", joined)
 	}
-	if !strings.Contains(joined, "PATH=/bin") || !strings.Contains(joined, "HOME=/home/test") {
-		t.Fatalf("allowlist missing:\n%s", joined)
+	if !strings.Contains(joined, "PATH=/custom/bin") {
+		t.Fatalf("Provider.Env should override allowlist PATH:\n%s", joined)
+	}
+	if strings.Contains(joined, "PATH=/bin\n") || strings.HasSuffix(joined, "PATH=/bin") {
+		// ensure we didn't also keep the old PATH as a duplicate entry
+		count := 0
+		for _, kv := range env {
+			if strings.HasPrefix(kv, "PATH=") {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("duplicate PATH entries: %d\n%s", count, joined)
+		}
 	}
 	last := env[len(env)-1]
 	want := rpc.EnvRPCFD + "=" + "3"
 	if last != want {
 		t.Fatalf("RPC fd must be last: got %q want %q", last, want)
 	}
-	// Parent's MAMORI_RPC_FD=999 must not appear, or if somehow present must be before last.
 	for i, kv := range env[:len(env)-1] {
-		if strings.HasPrefix(kv, rpc.EnvRPCFD+"=") && kv != want {
+		if strings.HasPrefix(kv, rpc.EnvRPCFD+"=") {
 			t.Fatalf("stale %s at [%d]=%q", rpc.EnvRPCFD, i, kv)
 		}
 	}

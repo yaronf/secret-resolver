@@ -29,10 +29,12 @@ var (
 	ErrRateLimited      = errors.New("secret-resolver: rate limited")
 	ErrInvalid          = errors.New("secret-resolver: invalid")
 	ErrTooLarge         = errors.New("secret-resolver: payload too large")
+	ErrClosed           = errors.New("secret-resolver: closed")
 )
 
 // kindSentinels enumerates known kinds and the errors.Is sentinel for each
-// (nil = no sentinel, same as mamori for unknown).
+// (nil = no sentinel, same as mamori for unknown). Size limits use ErrTooLarge
+// via Error.cause, not via KindProtocol's table entry.
 var kindSentinels = map[Kind]error{
 	KindNotFound:         ErrNotFound,
 	KindPermissionDenied: ErrPermissionDenied,
@@ -41,7 +43,7 @@ var kindSentinels = map[Kind]error{
 	KindRateLimited:      ErrRateLimited,
 	KindInvalid:          ErrInvalid,
 	KindUnknown:          nil,
-	KindProtocol:         ErrTooLarge,
+	KindProtocol:         nil,
 	KindProviderExit:     nil,
 }
 
@@ -58,6 +60,7 @@ func NormalizeKind(s string) Kind {
 type Error struct {
 	Kind    Kind
 	Message string
+	cause   error // optional; used by errors.Is (e.g. ErrTooLarge)
 }
 
 func (e *Error) Error() string {
@@ -70,9 +73,22 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Kind, e.Message)
 }
 
+func (e *Error) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
 func (e *Error) Is(target error) bool {
 	if e == nil {
 		return false
+	}
+	if target == ErrClosed {
+		return e.cause == ErrClosed
+	}
+	if e.cause != nil && errors.Is(e.cause, target) {
+		return true
 	}
 	sent, ok := kindSentinels[e.Kind]
 	return ok && sent != nil && target == sent

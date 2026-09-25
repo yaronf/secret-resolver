@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 
 	"github.com/yaronf/secret-resolver/rpc"
 )
@@ -57,7 +58,8 @@ func WithMaxValueBytes(n int) Option {
 //
 // The mutex guards byScheme/procs so Close is safe against concurrent Resolve.
 // That same shape is a starting point for later dynamic provider load/unload;
-// today the set is fixed at New.
+// today the set is fixed at New. Close waits for in-flight Resolves before
+// killing children.
 type Resolver struct {
 	mu            sync.RWMutex
 	byScheme      map[string]*providerProc
@@ -65,14 +67,16 @@ type Resolver struct {
 	stdout        io.Writer
 	stderr        io.Writer
 	maxValueBytes int
+
+	closed   atomic.Bool
+	inflight sync.WaitGroup
 }
 
 type providerProc struct {
-	cfg     Provider
-	cmd     *exec.Cmd
-	client  *rpc.Client
-	info    *rpc.InfoResponse
-	rpcFile *os.File // parent end of the RPC socketpair
+	cfg    Provider
+	cmd    *exec.Cmd
+	client *rpc.Client
+	info   *rpc.InfoResponse
 }
 
 // New starts configured provider processes and discovers their schemes.
@@ -148,6 +152,7 @@ func (r *Resolver) startProvider(pcfg Provider, maxConnRead int64) (*providerPro
 	}
 	_ = child.Close() // child process holds its own dup
 
+	// Client owns parent (via LimitedConn); do not Close the file separately.
 	conn := rpc.LimitReads(parent, maxConnRead)
 	client := rpc.NewTypedClient(rpc.NewClient(conn))
 
@@ -174,21 +179,29 @@ func (r *Resolver) startProvider(pcfg Provider, maxConnRead int64) (*providerPro
 	}
 
 	return &providerProc{
-		cfg:     pcfg,
-		cmd:     cmd,
-		client:  client,
-		info:    info,
-		rpcFile: parent,
+		cfg:    pcfg,
+		cmd:    cmd,
+		client: client,
+		info:   info,
 	}, nil
 }
 
 // Resolve fetches ref via the provider that owns its scheme.
 func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
+	if r.closed.Load() {
+		return Value{}, &Error{Kind: KindUnavailable, Message: "resolver closed", cause: ErrClosed}
+	}
+
 	parsed, err := ParseRef(ref)
 	if err != nil {
 		return Value{}, err
 	}
+
 	r.mu.RLock()
+	if r.closed.Load() {
+		r.mu.RUnlock()
+		return Value{}, &Error{Kind: KindUnavailable, Message: "resolver closed", cause: ErrClosed}
+	}
 	p := r.byScheme[parsed.Scheme]
 	maxBytes := r.maxValueBytes
 	r.mu.RUnlock()
@@ -196,10 +209,17 @@ func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
 		return Value{}, &Error{Kind: KindInvalid, Message: fmt.Sprintf("no provider for scheme %q", parsed.Scheme)}
 	}
 
+	r.inflight.Add(1)
+	defer r.inflight.Done()
+
 	res, err := p.client.Resolve(ctx, ref)
 	if err != nil {
 		if errors.Is(err, rpc.ErrTooLarge) {
-			return Value{}, &Error{Kind: KindProtocol, Message: "provider RPC exceeded read budget"}
+			return Value{}, &Error{
+				Kind:    KindProtocol,
+				Message: "provider RPC exceeded read budget",
+				cause:   ErrTooLarge,
+			}
 		}
 		if p.cmd.ProcessState != nil && p.cmd.ProcessState.Exited() {
 			return Value{}, &Error{Kind: KindProviderExit, Message: fmt.Sprintf("provider %s exited", p.cfg.Command)}
@@ -207,10 +227,12 @@ func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
 		return Value{}, &Error{Kind: KindUnavailable, Message: err.Error()}
 	}
 	if res.Err != nil {
-		return Value{}, &Error{
-			Kind:    NormalizeKind(res.Err.Kind),
-			Message: truncateMessage(res.Err.Message),
+		kind := NormalizeKind(res.Err.Kind)
+		out := &Error{Kind: kind, Message: truncateMessage(res.Err.Message)}
+		if kind == KindProtocol {
+			out.cause = ErrTooLarge // wire "protocol" today means size/budget
 		}
+		return Value{}, out
 	}
 	if !res.OK {
 		return Value{}, &Error{Kind: KindUnknown, Message: "empty resolve result"}
@@ -219,6 +241,7 @@ func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
 		return Value{}, &Error{
 			Kind:    KindProtocol,
 			Message: fmt.Sprintf("value exceeds max size (%d bytes)", maxBytes),
+			cause:   ErrTooLarge,
 		}
 	}
 	return Value{
@@ -230,27 +253,31 @@ func (r *Resolver) Resolve(ctx context.Context, ref string) (Value, error) {
 	}, nil
 }
 
-// Close shuts down all provider processes.
+// Close shuts down all provider processes. It rejects new Resolves, waits for
+// in-flight ones to finish, then kills children. Concurrent Close is safe.
 func (r *Resolver) Close() error {
+	r.closed.Store(true)
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	procs := r.procs
+	r.procs = nil
+	r.byScheme = make(map[string]*providerProc)
+	r.mu.Unlock()
+
+	r.inflight.Wait()
+
 	var first error
-	for _, p := range r.procs {
+	for _, p := range procs {
 		if p.client != nil {
 			if err := p.client.Close(); err != nil && first == nil {
 				first = err
 			}
-		}
-		if p.rpcFile != nil {
-			_ = p.rpcFile.Close()
 		}
 		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()
 			_, _ = p.cmd.Process.Wait()
 		}
 	}
-	r.procs = nil
-	r.byScheme = make(map[string]*providerProc)
 	return first
 }
 

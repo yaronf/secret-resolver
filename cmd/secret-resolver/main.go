@@ -79,10 +79,10 @@ func formatResolveJSON(v secretresolver.Value, showSecrets bool) resolveJSON {
 	out := resolveJSON{
 		Version:   v.Version,
 		Sensitive: v.Sensitive,
-		Metadata:  v.Metadata,
 	}
 	if showSecrets {
 		out.Bytes = string(v.Bytes)
+		out.Metadata = v.Metadata
 		return out
 	}
 	out.Redacted = true

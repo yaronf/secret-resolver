@@ -45,6 +45,9 @@ func (c *Client) call(ctx context.Context, method string, args, reply any) error
 	call := c.rpc.Go(method, args, reply, nil)
 	select {
 	case <-ctx.Done():
+		// Abandon waiting only; the in-flight RPC may still complete on the
+		// child (net/rpc has no cancel). Pass Deadline on ResolveRequest when
+		// ctx has one so the provider can bound backend work.
 		return fmt.Errorf("rpc %s: %w", method, ctx.Err())
 	case <-call.Done:
 		return call.Error
