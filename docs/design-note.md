@@ -1,4 +1,4 @@
-# Design note: secret-resolver + out-of-process providers
+# Design note: Mamori secret resolution via out-of-process providers
 
 ## Customer value (first)
 
@@ -33,12 +33,12 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 ## Transport
 
-**This POC:** RPC on a **dedicated Unix socketpair** fd via `exec.Cmd.ExtraFiles` (`SECRET_RESOLVER_RPC_FD`, default 3). **Stdout stays free** for provider logging; stderr is forwarded to the host. No stdin/stdout framing. Inheritance is the authentication — no shared secret.
+**This POC:** RPC on a **dedicated Unix socketpair** fd via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for provider logging; stderr is forwarded to the host. No stdin/stdout framing. Inheritance is the authentication — no shared secret.
 
 **Unix only** (Linux, macOS, …). Mamori’s CI still builds/vets on Windows, so an upstream landing needs a portable path. Candidates (not implemented here):
 
 1. **Loopback TCP + handshake token** (smallest cross-platform change)  
-   Host `listen 127.0.0.1:0` → pass `SECRET_RESOLVER_RPC_ADDR` + `SECRET_RESOLVER_RPC_TOKEN` in **env** (never argv — shows up in `ps` / cmdline) → child dials → host **Accept once**, close listener, reject wrong/missing token. Token is required: anything on the machine can race the open port before the child connects. Clear the token from the child’s env after auth if desired.
+   Host `listen 127.0.0.1:0` → pass `MAMORI_RPC_ADDR` + `MAMORI_RPC_TOKEN` in **env** (never argv — shows up in `ps` / cmdline) → child dials → host **Accept once**, close listener, reject wrong/missing token. Token is required: anything on the machine can race the open port before the child connects. Clear the token from the child’s env after auth if desired.
 
 2. **Unix domain socket path + Windows named pipe** (HashiCorp go-plugin style)  
    Random name, `0600` / same-user ACL; avoids the localhost accept race. Not one stdlib API — platform code (and likely a small Windows helper dep). Preferable long-term if upstream wants to avoid TCP entirely; FIFOs are *not* a substitute (half-duplex).

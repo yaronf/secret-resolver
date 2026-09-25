@@ -16,8 +16,8 @@ func NewSocketPair() (parent, child *os.File, err error) {
 		return nil, nil, fmt.Errorf("rpc: socketpair: %w", err)
 	}
 	// Socketpair fds are CLOEXEC; ExtraFiles still inherits them into the child.
-	parent = os.NewFile(uintptr(fds[0]), "secret-resolver-rpc-parent")
-	child = os.NewFile(uintptr(fds[1]), "secret-resolver-rpc-child")
+	parent = os.NewFile(uintptr(fds[0]), "mamori-rpc-parent")
+	child = os.NewFile(uintptr(fds[1]), "mamori-rpc-child")
 	if parent == nil || child == nil {
 		if parent != nil {
 			_ = parent.Close()

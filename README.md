@@ -1,6 +1,6 @@
 # secret-resolver
 
-POC: resolve Mamori URIs via a thin host that loads **out-of-process provider plugins** over a dedicated RPC fd — no cloud/provider SDKs in the resolver module.
+POC: **Mamori** secret URI resolution via a thin host that loads **out-of-process Mamori provider plugins** over a dedicated RPC fd — no cloud/provider SDKs in the host module.
 
 **Platform:** Unix only for this POC (Linux, macOS, …) — `socketpair` + `ExtraFiles`. Windows alternatives (loopback + env token, or UDS / named pipe) are sketched in [docs/design-note.md](docs/design-note.md#transport), not implemented.
 

@@ -6,6 +6,7 @@ import "time"
 const ProtocolVersion uint32 = 1
 
 // ServiceName is the net/rpc service name (methods: Info, Resolve).
+// Kept as "Mamori": this is the Mamori provider wire protocol.
 const ServiceName = "Mamori"
 
 type InfoRequest struct{}

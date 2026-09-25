@@ -16,7 +16,7 @@ import (
 type Options struct {
 	Name    string // Info.ProviderName
 	Version string // Info.ProviderVersion; default: build info
-	// Conn is the RPC duplex. If nil, the inherited fd from SECRET_RESOLVER_RPC_FD
+	// Conn is the RPC duplex. If nil, the inherited fd from MAMORI_RPC_FD
 	// (default 3 / ExtraFiles[0]) is used — stdout stays free for logging.
 	Conn io.ReadWriteCloser
 }
