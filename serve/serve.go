@@ -151,6 +151,13 @@ func (s *service) Resolve(args *mrpc.ResolveRequest, reply *mrpc.ResolveResult) 
 		reply.Err = mapErr(err)
 		return nil
 	}
+	if len(val.Bytes) > mrpc.DefaultMaxValueBytes {
+		reply.Err = &mrpc.RPCError{
+			Kind:    string(mamori.KindUnknown),
+			Message: fmt.Sprintf("value exceeds max size (%d bytes)", mrpc.DefaultMaxValueBytes),
+		}
+		return nil
+	}
 	reply.OK = true
 	reply.Value = mrpc.ResolveResponse{
 		Bytes:     val.Bytes,
@@ -169,8 +176,18 @@ func mapErr(err error) *mrpc.RPCError {
 	}
 	msg := err.Error()
 	const max = 512
-	if len(msg) > max {
-		msg = msg[:max] + "…"
+	out := make([]byte, 0, min(len(msg), max+1))
+	for i := 0; i < len(msg) && len(out) < max; i++ {
+		c := msg[i]
+		if c < 0x20 && c != '\t' || c == 0x7f {
+			out = append(out, '?')
+			continue
+		}
+		out = append(out, c)
 	}
-	return &mrpc.RPCError{Kind: string(kind), Message: msg}
+	s := string(out)
+	if len(msg) > max {
+		s += "…"
+	}
+	return &mrpc.RPCError{Kind: string(kind), Message: s}
 }

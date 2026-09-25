@@ -27,7 +27,30 @@ var (
 	ErrUnavailable      = errors.New("secret-resolver: unavailable")
 	ErrRateLimited      = errors.New("secret-resolver: rate limited")
 	ErrInvalid          = errors.New("secret-resolver: invalid")
+	ErrTooLarge         = errors.New("secret-resolver: payload too large")
 )
+
+var knownKinds = map[Kind]struct{}{
+	KindNotFound:         {},
+	KindPermissionDenied: {},
+	KindUnauthenticated:  {},
+	KindUnavailable:      {},
+	KindRateLimited:      {},
+	KindInvalid:          {},
+	KindUnknown:          {},
+	KindProtocol:         {},
+	KindProviderExit:     {},
+}
+
+// NormalizeKind maps a wire kind string to a known Kind; unknown values become KindUnknown.
+func NormalizeKind(s string) Kind {
+	k := Kind(s)
+	if _, ok := knownKinds[k]; ok {
+		return k
+	}
+	return KindUnknown
+}
+
 
 // Error is a classified resolve failure. Message must never contain secret bytes.
 type Error struct {

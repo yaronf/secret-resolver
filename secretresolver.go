@@ -2,11 +2,11 @@ package secretresolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 	"sync"
 
 	"github.com/yaronf/secret-resolver/rpc"
@@ -25,8 +25,10 @@ type Provider struct {
 type Option func(*options)
 
 type options struct {
-	providers []Provider
-	stderr    io.Writer
+	providers      []Provider
+	stderr         io.Writer
+	maxValueBytes  int
+	maxConnRead    int64
 }
 
 // WithProviders registers provider child processes (required).
@@ -39,38 +41,52 @@ func WithStderr(w io.Writer) Option {
 	return func(o *options) { o.stderr = w }
 }
 
+// WithMaxValueBytes caps Resolve payload size (default rpc.DefaultMaxValueBytes).
+func WithMaxValueBytes(n int) Option {
+	return func(o *options) { o.maxValueBytes = n }
+}
+
 // Resolver routes URIs to out-of-process provider plugins.
 type Resolver struct {
-	mu       sync.RWMutex
-	byScheme map[string]*providerProc
-	procs    []*providerProc
-	stderr   io.Writer
+	mu            sync.RWMutex
+	byScheme      map[string]*providerProc
+	procs         []*providerProc
+	stderr        io.Writer
+	maxValueBytes int
 }
 
 type providerProc struct {
-	cfg    Provider
-	cmd    *exec.Cmd
-	client *rpc.Client
-	info   *rpc.InfoResponse
+	cfg     Provider
+	cmd     *exec.Cmd
+	client  *rpc.Client
+	info    *rpc.InfoResponse
 	rpcFile *os.File // parent end of the RPC socketpair
 }
 
 // New starts configured provider processes and discovers their schemes.
 func New(opts ...Option) (*Resolver, error) {
-	o := options{stderr: os.Stderr}
+	o := options{
+		stderr:        os.Stderr,
+		maxValueBytes: rpc.DefaultMaxValueBytes,
+		maxConnRead:   rpc.DefaultMaxConnRead,
+	}
 	for _, fn := range opts {
 		fn(&o)
 	}
 	if len(o.providers) == 0 {
 		return nil, fmt.Errorf("%w: no providers configured (use WithProviders)", ErrInvalid)
 	}
+	if o.maxValueBytes <= 0 {
+		o.maxValueBytes = rpc.DefaultMaxValueBytes
+	}
 
 	r := &Resolver{
-		byScheme: make(map[string]*providerProc),
-		stderr:   o.stderr,
+		byScheme:      make(map[string]*providerProc),
+		stderr:        o.stderr,
+		maxValueBytes: o.maxValueBytes,
 	}
 	for _, pcfg := range o.providers {
-		p, err := r.startProvider(pcfg)
+		p, err := r.startProvider(pcfg, o.maxConnRead)
 		if err != nil {
 			_ = r.Close()
 			return nil, err
@@ -87,7 +103,7 @@ func New(opts ...Option) (*Resolver, error) {
 	return r, nil
 }
 
-func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
+func (r *Resolver) startProvider(pcfg Provider, maxConnRead int64) (*providerProc, error) {
 	if pcfg.Command == "" {
 		return nil, fmt.Errorf("%w: empty provider command", ErrInvalid)
 	}
@@ -97,11 +113,15 @@ func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command(pcfg.Command, pcfg.Args...)
-	cmd.Env = append(os.Environ(), rpc.EnvRPCFD+"="+strconv.Itoa(rpc.DefaultRPCFD))
-	for k, v := range pcfg.Env {
-		cmd.Env = append(cmd.Env, k+"="+v)
+	env, err := buildChildEnv(pcfg.Env)
+	if err != nil {
+		_ = parent.Close()
+		_ = child.Close()
+		return nil, err
 	}
+
+	cmd := exec.Command(pcfg.Command, pcfg.Args...)
+	cmd.Env = env
 	// Leave stdout inherited so providers can log normally; forward stderr.
 	cmd.Stderr = r.stderr
 	cmd.ExtraFiles = []*os.File{child}
@@ -113,7 +133,8 @@ func (r *Resolver) startProvider(pcfg Provider) (*providerProc, error) {
 	}
 	_ = child.Close() // child process holds its own dup
 
-	client := rpc.NewTypedClient(rpc.NewClient(parent))
+	conn := rpc.LimitReads(parent, maxConnRead)
+	client := rpc.NewTypedClient(rpc.NewClient(conn))
 
 	ctx, cancel := rpc.PingDeadline()
 	defer cancel()
@@ -154,6 +175,7 @@ func (r *Resolver) Resolve(ctx context.Context, uri string) (Value, error) {
 	}
 	r.mu.RLock()
 	p := r.byScheme[ref.Scheme]
+	maxBytes := r.maxValueBytes
 	r.mu.RUnlock()
 	if p == nil {
 		return Value{}, &Error{Kind: KindInvalid, Message: fmt.Sprintf("no provider for scheme %q", ref.Scheme)}
@@ -161,16 +183,28 @@ func (r *Resolver) Resolve(ctx context.Context, uri string) (Value, error) {
 
 	res, err := p.client.Resolve(ctx, uri)
 	if err != nil {
+		if errors.Is(err, rpc.ErrTooLarge) {
+			return Value{}, &Error{Kind: KindProtocol, Message: "provider RPC exceeded read budget"}
+		}
 		if p.cmd.ProcessState != nil && p.cmd.ProcessState.Exited() {
 			return Value{}, &Error{Kind: KindProviderExit, Message: fmt.Sprintf("provider %s exited", p.cfg.Command)}
 		}
 		return Value{}, &Error{Kind: KindUnavailable, Message: err.Error()}
 	}
 	if res.Err != nil {
-		return Value{}, &Error{Kind: Kind(res.Err.Kind), Message: res.Err.Message}
+		return Value{}, &Error{
+			Kind:    NormalizeKind(res.Err.Kind),
+			Message: sanitizeErrorMessage(res.Err.Message),
+		}
 	}
 	if !res.OK {
 		return Value{}, &Error{Kind: KindUnknown, Message: "empty resolve result"}
+	}
+	if len(res.Value.Bytes) > maxBytes {
+		return Value{}, &Error{
+			Kind:    KindProtocol,
+			Message: fmt.Sprintf("value exceeds max size (%d bytes)", maxBytes),
+		}
 	}
 	return Value{
 		Bytes:     res.Value.Bytes,
@@ -214,4 +248,23 @@ func (r *Resolver) Schemes() []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+// sanitizeErrorMessage keeps provider error text out of secret-shaped dumps:
+// truncate and strip controls. Providers must still not put secret bytes in Error().
+func sanitizeErrorMessage(msg string) string {
+	const max = 512
+	b := make([]byte, 0, min(len(msg), max+1))
+	for i := 0; i < len(msg) && len(b) < max; i++ {
+		c := msg[i]
+		if c < 0x20 && c != '\t' || c == 0x7f {
+			b = append(b, '?')
+			continue
+		}
+		b = append(b, c)
+	}
+	if len(msg) > max {
+		return string(b) + "…"
+	}
+	return string(b)
 }

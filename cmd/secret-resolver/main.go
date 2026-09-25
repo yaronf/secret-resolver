@@ -14,15 +14,16 @@ import (
 
 func main() {
 	var (
-		providers stringList
-		envs      stringList
-		timeout   = flag.Duration("timeout", 30*time.Second, "per-resolve timeout")
+		providers   stringList
+		envs        stringList
+		timeout     = flag.Duration("timeout", 30*time.Second, "per-resolve timeout")
+		showSecrets = flag.Bool("show-secrets", false, "print secret bytes (default: redact)")
 	)
 	flag.Var(&providers, "provider", "provider command (repeatable)")
 	flag.Var(&envs, "env", "KEY=VALUE for provider processes (repeatable)")
 	flag.Parse()
 	if len(providers) == 0 || flag.NArg() < 1 {
-		fmt.Fprintf(os.Stderr, "usage: secret-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] <uri>\n")
+		fmt.Fprintf(os.Stderr, "usage: secret-resolver -provider ./mamori-provider-sqlite [-env KEY=VAL] [-show-secrets] <uri>\n")
 		os.Exit(2)
 	}
 
@@ -58,17 +59,31 @@ func main() {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	_ = enc.Encode(struct {
-		Bytes     string            `json:"bytes"`
-		Version   string            `json:"version"`
-		Sensitive bool              `json:"sensitive"`
-		Metadata  map[string]string `json:"metadata,omitempty"`
-	}{
-		Bytes:     string(v.Bytes),
+	_ = enc.Encode(formatResolveJSON(v, *showSecrets))
+}
+
+type resolveJSON struct {
+	Bytes     string            `json:"bytes,omitempty"`
+	ByteLen   int               `json:"byte_len,omitempty"`
+	Redacted  bool              `json:"redacted,omitempty"`
+	Version   string            `json:"version"`
+	Sensitive bool              `json:"sensitive"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
+func formatResolveJSON(v secretresolver.Value, showSecrets bool) resolveJSON {
+	out := resolveJSON{
 		Version:   v.Version,
 		Sensitive: v.Sensitive,
 		Metadata:  v.Metadata,
-	})
+	}
+	if showSecrets {
+		out.Bytes = string(v.Bytes)
+		return out
+	}
+	out.Redacted = true
+	out.ByteLen = len(v.Bytes)
+	return out
 }
 
 type stringList []string

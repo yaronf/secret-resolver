@@ -57,7 +57,7 @@ URI → select provider process → stdio RPC → existing Mamori provider → V
               ┌───────────┴───────────┐
               │ scheme → process map  │
               │ process manager       │
-              │ framed net/rpc client │
+              │ net/rpc client │
               └───────────┬───────────┘
                           │ ExtraFiles fd (socketpair)
           ┌───────────────┼────────────────┐
@@ -103,7 +103,7 @@ Artifacts to hand over: runnable POC, README demo script, dependency-graph / bin
 
 ## Deliverables (POC-scoped)
 
-1. **`secret-resolver`** — process manager + framed `net/rpc` + discovery + public `Resolve` / `WithProviders` API (spike module; intended upstream shape).
+1. **`secret-resolver`** — process manager + `net/rpc` + discovery + public `Resolve` / `WithProviders` API (spike module; intended upstream shape).
 2. **Provider binaries (POC bridge)** — `go generate` → `mamori-provider-sqlite` (required demo) and optionally `mamori-provider-aws` via blank-import + `ServeRegistered()`; **zero edits** to existing provider packages.
 3. **Minimal wire/SPI types in the resolver** — enough for the RPC boundary. Provider children keep importing full `github.com/xavidop/mamori` as today.
 4. **Design note** — includes the **migration proposal**: move from generate wrappers to providers shipping as RPC servers upstream.
@@ -159,7 +159,7 @@ secret-resolver/
     process.go
     rpc/
         protocol.go
-        codec.go      # framed ReadWriteCloser over stdio
+        codec.go      # gob ReadWriteCloser over RPC fd
         client.go
         server.go
     cmd/
@@ -251,7 +251,7 @@ func ServeRegistered() error
 
 The shim:
 
-1. serves registered providers over framed stdio RPC;
+1. serves registered providers over gob RPC on the inherited fd;
 2. exposes schemes via `Info` (union of all `Register`ed schemes in-process);
 3. parses URIs with `ParseRef`;
 4. dispatches `Resolve` to the matching provider;
@@ -309,7 +309,7 @@ Startup:
 ```
 WithProviders / CLI flags
   → exec each command (inherit/override env)
-  → establish framed stdio RPC
+  → establish gob RPC on inherited fd
   → Mamori.Info()
   → register every returned scheme → that process
 ```

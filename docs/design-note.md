@@ -33,7 +33,9 @@ The resolver depends 100% on Mamori providers (schemes, SPI, releases). A foreve
 
 ## Transport
 
-**This POC:** RPC on a **dedicated Unix socketpair** fd via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for provider logging; stderr is forwarded to the host. No stdin/stdout framing. Inheritance is the authentication — no shared secret.
+**This POC:** RPC on a **dedicated Unix socketpair** fd via `exec.Cmd.ExtraFiles` (`MAMORI_RPC_FD`, default 3). **Stdout stays free** for provider logging; stderr is forwarded to the host. Wire encoding is stdlib **gob `net/rpc`** (no length-prefixed framing). Inheritance is the authentication — no shared secret.
+
+**Trust model:** out-of-process providers isolate **dependencies / SDKs**, not adversaries. A replaced binary or hostile plugin is still trusted to resolve secrets for the host. The host uses a minimal child environment (explicit `Provider.Env` for credentials), pins `MAMORI_RPC_FD`, caps inbound RPC reads and value size, and treats unknown error kinds as `unknown`.
 
 **Unix only** (Linux, macOS, …). Mamori’s CI still builds/vets on Windows, so an upstream landing needs a portable path. Candidates (not implemented here):
 
@@ -48,8 +50,10 @@ Socketpair stays the POC default: fewest deps, no filesystem name, no token. Por
 ## Limitations (POC)
 
 - **Unix-only** host↔child transport (`socketpair` + `ExtraFiles`); Windows alternatives documented above, not coded.
-- Context cancel stops waiting locally; optional `Deadline` on the request bounds the child.
-- Credentials: env + cloud default chains only in the POC.
+- Providers are **not** a security sandbox (dep isolation only).
+- Context cancel stops waiting locally; optional `Deadline` on the request bounds the child (in-flight backend fetches may continue until deadline).
+- Child env is allowlisted + explicit `Provider.Env` (no full host environ); cloud default file chains still need `HOME` / paths via allowlist or Env.
+- Resolve value size and per-connection gob read budgets are capped.
 - Resolve-only; Watch is a later design.
 
 ## Evidence from this POC

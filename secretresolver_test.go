@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -112,6 +113,33 @@ func TestUnknownScheme(t *testing.T) {
 	_, err = r.Resolve(context.Background(), "other://x")
 	var re *secretresolver.Error
 	if !errors.As(err, &re) || re.Kind != secretresolver.KindInvalid {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestResolveRejectsHugeValue(t *testing.T) {
+	fake := buildFake(t)
+	big := strings.Repeat("x", 100)
+	values := `{"fake://big":"` + big + `"}`
+
+	r, err := secretresolver.New(
+		secretresolver.WithProviders(secretresolver.Provider{
+			Command: fake,
+			Env:     map[string]string{"FAKE_VALUES": values},
+		}),
+		secretresolver.WithMaxValueBytes(50),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	_, err = r.Resolve(context.Background(), "fake://big")
+	if err == nil {
+		t.Fatal("expected too-large error")
+	}
+	var re *secretresolver.Error
+	if !errors.As(err, &re) || re.Kind != secretresolver.KindProtocol {
 		t.Fatalf("got %v", err)
 	}
 }

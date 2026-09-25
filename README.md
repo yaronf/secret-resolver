@@ -31,6 +31,9 @@ go build -o bin/secret-resolver ./cmd/secret-resolver
   -provider ./bin/mamori-provider-sqlite \
   -env SQLITE_PATH=/tmp/mamori-demo.db \
   'sqlite://config/greeting'
+# add -show-secrets to print value bytes (default output redacts them)
+
+# cloud credentials: pass explicitly via -env (host environ is not inherited)
 ```
 
 Library usage: `secretresolver.New(secretresolver.WithProviders(...))`. If this lands in Mamori, provider lists belong in **Mamori’s YAML**, not a parallel schema here.
