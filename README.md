@@ -1,5 +1,8 @@
 # secret-resolver
 
+> [!WARNING]
+> **POC only — not for production use.** Experimental spike to discuss with Mamori maintainers. APIs, transport, and security posture will change; do not rely on this in real systems.
+
 POC: **Mamori** secret URI resolution via a thin host that loads **out-of-process Mamori provider plugins** over a dedicated RPC fd — no cloud/provider SDKs in the host module.
 
 **Platform:** Unix only for this POC (Linux, macOS, …) — `socketpair` + `ExtraFiles`. Windows alternatives (loopback + env token, or UDS / named pipe) are sketched in [docs/design-note.md](docs/design-note.md#transport), not implemented.
